@@ -1,122 +1,195 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import store from '@/store'
+import Layout from '@/layouts/Layout.vue'
 
-import MainLayout from '@/layouts/MainLayout.vue'
+// 路由懒加载
+const Home = () => import('@/views/Home.vue')
+const Login = () => import('@/views/auth/Login.vue')
+const Register = () => import('@/views/auth/Register.vue')
+const GameList = () => import('@/views/game/GameList.vue')
+const GameDetail = () => import('@/views/game/GameDetail.vue')
+const Community = () => import('@/views/community/Community.vue')
+const PostDetail = () => import('@/views/community/PostDetail.vue')
+const EventList = () => import('@/views/event/EventList.vue')
+const EventDetail = () => import('@/views/event/EventDetail.vue')
+const Profile = () => import('@/views/profile/Profile.vue')
+const Settings = () => import('@/views/settings/Settings.vue')
+const Error404 = () => import('@/views/error/404.vue')
+
+// Admin 页面
+const AdminLayout = () => import('@/layouts/AdminLayout.vue')
+const Dashboard = () => import('@/views/admin/Dashboard.vue')
+const UserManagement = () => import('@/views/admin/UserManagement.vue')
+const ContentManagement = () => import('@/views/admin/ContentManagement.vue')
 
 const routes = [
     {
         path: '/',
-        component: MainLayout,
+        component: Layout,
         children: [
             {
                 path: '',
                 name: 'Home',
-                component: () => import('../views/Home.vue'),
+                component: Home,
                 meta: { title: '首页' }
             },
             {
                 path: 'games',
-                name: 'Games',
-                component: () => import('../views/game/GameList.vue'),
-                meta: { title: '游戏库', requiresAuth: true }
+                name: 'GameList',
+                component: GameList,
+                meta: { title: '游戏库' }
+            },
+            {
+                path: 'games/:id',
+                name: 'GameDetail',
+                component: GameDetail,
+                meta: { title: '游戏详情' }
             },
             {
                 path: 'community',
                 name: 'Community',
-                component: () => import('../views/community/PostList.vue'),
-                meta: { title: '社区', requiresAuth: true }
-            },
-            {
-                path: 'events',
-                name: 'Events',
-                component: () => import('../views/event/EventList.vue'),
-                meta: { title: '活动', requiresAuth: true }
-            }
-        ]
-    },
-    {
-        path: '/login',
-        name: 'Login',
-        component: () => import('../views/auth/Login.vue'),
-        meta: { title: '登录' }
-    },
-    {
-        path: '/register',
-        name: 'Register',
-        component: () => import('../views/auth/Register.vue'),
-        meta: { title: '注册' }
-    },
-    {
-        path: '/community',
-        component: () => import('../layouts/MainLayout.vue'),
-        children: [
-            {
-                path: '',
-                name: 'PostList',
-                component: () => import('../views/community/PostList.vue'),
-                meta: { title: '社区', requiresAuth: true }
+                component: Community,
+                meta: { title: '社区' }
             },
             {
                 path: 'posts/:id',
                 name: 'PostDetail',
-                component: () => import('../views/community/PostDetail.vue'),
-                meta: { title: '帖子详情', requiresAuth: true }
+                component: PostDetail,
+                meta: { title: '帖子详情' }
             },
             {
-                path: 'posts/:id/edit',
-                name: 'PostEdit',
-                component: () => import('../views/community/PostEdit.vue'),
-                meta: { title: '编辑帖子', requiresAuth: true }
+                path: 'events',
+                name: 'EventList',
+                component: EventList,
+                meta: { title: '活动' }
+            },
+            {
+                path: 'events/:id',
+                name: 'EventDetail',
+                component: EventDetail,
+                meta: { title: '活动详情' }
+            },
+            {
+                path: 'profile',
+                name: 'Profile',
+                component: Profile,
+                meta: {
+                    title: '个人中心',
+                    requiresAuth: true
+                }
+            },
+            {
+                path: 'settings',
+                name: 'Settings',
+                component: Settings,
+                meta: {
+                    title: '设置',
+                    requiresAuth: true
+                }
+            }
+        ]
+    },
+    {
+        path: '/auth',
+        children: [
+            {
+                path: 'login',
+                name: 'Login',
+                component: Login,
+                meta: { title: '登录' }
+            },
+            {
+                path: 'register',
+                name: 'Register',
+                component: Register,
+                meta: { title: '注册' }
             }
         ]
     },
     {
         path: '/admin',
-        component: () => import('../layouts/AdminLayout.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true },
+        component: AdminLayout,
+        meta: {
+            requiresAuth: true,
+            requiresAdmin: true
+        },
         children: [
             {
-                path: 'posts',
-                name: 'AdminPosts',
-                component: () => import('../views/admin/PostManagement.vue'),
-                meta: { title: '帖子管理' }
+                path: '',
+                name: 'Dashboard',
+                component: Dashboard,
+                meta: { title: '仪表盘' }
             },
             {
-                path: 'reports',
-                name: 'AdminReports',
-                component: () => import('../views/admin/ReportManagement.vue'),
-                meta: { title: '举报管理' }
+                path: 'users',
+                name: 'UserManagement',
+                component: UserManagement,
+                meta: { title: '用户管理' }
+            },
+            {
+                path: 'content',
+                name: 'ContentManagement',
+                component: ContentManagement,
+                meta: { title: '内容管理' }
             }
         ]
+    },
+    {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: Error404,
+        meta: { title: '404' }
     }
 ]
 
 const router = createRouter({
-    history: createWebHistory(process.env.BASE_URL),
-    routes
-})
-
-// 路由守卫
-router.beforeEach((to, from, next) => {
-    const token = localStorage.getItem('token')
-    if (to.matched.some(record => record.meta.requiresAuth)) {
-        if (!token) {
-            next('/login')
+    history: createWebHistory(),
+    routes,
+    scrollBehavior(to, from, savedPosition) {
+        if (savedPosition) {
+            return savedPosition
         } else {
-            if (to.matched.some(record => record.meta.requiresAdmin)) {
-                const userRole = localStorage.getItem('userRole')
-                if (userRole === 'ADMIN') {
-                    next()
-                } else {
-                    next('/')
-                }
-            } else {
-                next()
-            }
+            return { top: 0 }
         }
-    } else {
-        next()
     }
 })
 
-export default router
+// 全局路由守卫
+router.beforeEach((to, from, next) => {
+    // 设置页面标题
+    document.title = to.meta.title
+        ? `${to.meta.title} - 游戏社区`
+        : '游戏社区'
 
+    const isAuthenticated = store.getters['auth/isAuthenticated']
+    const isAdmin = store.getters['auth/isAdmin']
+
+    // 需要登录的页面
+    if (to.matched.some(record => record.meta.requiresAuth)) {
+        if (!isAuthenticated) {
+            next({
+                path: '/auth/login',
+                query: { redirect: to.fullPath }
+            })
+            return
+        }
+    }
+
+    // 需要管理员权限的页面
+    if (to.matched.some(record => record.meta.requiresAdmin)) {
+        if (!isAdmin) {
+            next({ name: 'Home' })
+            return
+        }
+    }
+
+    // 已登录用户不能访问登录/注册页
+    if (isAuthenticated && (to.name === 'Login' || to.name === 'Register')) {
+        next({ name: 'Home' })
+        return
+    }
+
+    next()
+})
+
+export default router

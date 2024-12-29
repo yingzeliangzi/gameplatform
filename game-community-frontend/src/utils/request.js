@@ -1,54 +1,70 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import router from '@/router'
+import store from '@/store'
+import { getToken } from '@/utils/auth'
+import { handleError } from '@/utils'
 
-const service = axios.create({
-    baseURL: process.env.VUE_APP_API_URL || 'http://localhost:8080',
-    timeout: 5000
+// 创建 axios 实例
+const request = axios.create({
+    baseURL: process.env.VUE_APP_BASE_API || '/api',
+    timeout: 15000
 })
 
 // 请求拦截器
-service.interceptors.request.use(
+request.interceptors.request.use(
     config => {
-        const token = localStorage.getItem('token')
+        const token = getToken()
         if (token) {
-            config.headers['Authorization'] = 'Bearer ' + token
+            config.headers['Authorization'] = `Bearer ${token}`
         }
         return config
     },
     error => {
-        console.log(error)
+        console.error('Request error:', error)
         return Promise.reject(error)
     }
 )
 
 // 响应拦截器
-service.interceptors.response.use(
+request.interceptors.response.use(
     response => {
         const res = response.data
-        if (res.code !== 200) {
-            ElMessage({
-                message: res.message || 'Error',
-                type: 'error',
-                duration: 5 * 1000
-            })
-            if (res.code === 401) {
-                // token过期
-                router.push('/login')
-            }
+
+        // 如果响应的是文件流
+        if (response.config.responseType === 'blob') {
+            return response
+        }
+
+        // 如果接口返回错误码
+        if (res.code && res.code !== 200) {
+            handleError(res)
             return Promise.reject(new Error(res.message || 'Error'))
         }
+
         return res
     },
     error => {
-        console.log('err' + error)
-        ElMessage({
-            message: error.message,
-            type: 'error',
-            duration: 5 * 1000
-        })
+        if (error.response) {
+            const { status } = error.response
+
+            // 处理 401 未授权
+            if (status === 401) {
+                // Token 过期，登出处理
+                store.dispatch('auth/resetAuth')
+                location.reload()
+                return
+            }
+
+            // 处理 403 权限不足
+            if (status === 403) {
+                ElMessage.error('没有权限进行此操作')
+                return Promise.reject(error)
+            }
+        }
+
+        handleError(error)
         return Promise.reject(error)
     }
 )
 
-export default service
+export default request

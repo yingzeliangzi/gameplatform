@@ -11,90 +11,115 @@ gameplatform
 │  ├─ .env
 │  ├─ .env.development
 │  ├─ .env.production
+│  ├─ .env.staging
 │  ├─ eslint.config.mjs
+│  ├─ jsconfig.json
 │  ├─ package-lock.json
 │  ├─ package.json
 │  ├─ public
 │  │  └─ index.html
-│  └─ src
-│     ├─ .eslintrc.js
-│     ├─ api
-│     │  ├─ auth.js
-│     │  ├─ comment.js
-│     │  ├─ event.js
-│     │  ├─ game.js
-│     │  ├─ notification.js
-│     │  ├─ post.js
-│     │  ├─ report.js
-│     │  └─ settings.js
-│     ├─ App.vue
-│     ├─ assets
-│     │  ├─ images
-│     │  └─ styles
-│     ├─ components
-│     │  ├─ common
-│     │  │  ├─ Footer.vue
-│     │  │  ├─ Header.vue
-│     │  │  └─ Sidebar.vue
-│     │  ├─ event
-│     │  ├─ game
-│     │  ├─ NotificationBell.vue
-│     │  ├─ NotificationList.vue
-│     │  └─ post
-│     ├─ layouts
-│     │  ├─ AdminLayout.vue
-│     │  └─ MainLayout.vue
-│     ├─ main.js
-│     ├─ router
-│     │  ├─ error.js
-│     │  ├─ index.js
-│     │  └─ permission.js
-│     ├─ store
-│     │  ├─ index.js
-│     │  └─ modules
-│     │     ├─ auth.js
-│     │     ├─ event.js
-│     │     ├─ game.js
-│     │     ├─ notification.js
-│     │     ├─ permission.js
-│     │     └─ post.js
-│     ├─ utils
-│     │  ├─ auth.js
-│     │  ├─ request.js
-│     │  └─ websocket.js
-│     └─ views
-│        ├─ admin
-│        │  ├─ ContentManagement.vue
-│        │  ├─ PostManagement.vue
-│        │  ├─ ReportManagement.vue
-│        │  └─ UserManagement.vue
-│        ├─ auth
-│        │  ├─ Login.vue
-│        │  └─ Register.vue
-│        ├─ community
-│        │  ├─ PostDetail.vue
-│        │  ├─ PostEdit.vue
-│        │  └─ PostList.vue
-│        ├─ dashboard
-│        │  └─ index.vue
-│        ├─ error
-│        │  ├─ 403.vue
-│        │  ├─ 404.vue
-│        │  └─ 500.vue
-│        ├─ event
-│        │  ├─ EventDetail.vue
-│        │  ├─ EventForm.vue
-│        │  ├─ EventList.vue
-│        │  └─ RegistrationManagement.vue
-│        ├─ game
-│        │  ├─ GameDetail.vue
-│        │  └─ GameList.vue
-│        ├─ Home.vue
-│        ├─ profile
-│        │  ├─ index.vue
-│        │  └─ UserProfile.vue
-│        └─ settings
-│           └─ index.vue
+│  ├─ src
+│  │  ├─ .eslintrc.js
+│  │  ├─ api
+│  │  │  ├─ auth.js
+│  │  │  ├─ comment.js
+│  │  │  ├─ event.js
+│  │  │  ├─ game.js
+│  │  │  ├─ home.js
+│  │  │  ├─ notification.js
+│  │  │  ├─ post.js
+│  │  │  ├─ report.js
+│  │  │  └─ settings.js
+│  │  ├─ App.vue
+│  │  ├─ assets
+│  │  │  ├─ images
+│  │  │  │  ├─ 403.svg
+│  │  │  │  ├─ 404.svg
+│  │  │  │  └─ 500.svg
+│  │  │  └─ styles
+│  │  │     └─ index.scss
+│  │  ├─ components
+│  │  │  ├─ comment
+│  │  │  │  ├─ CommentEditior.vue
+│  │  │  │  ├─ CommentFilters.vue
+│  │  │  │  ├─ CommentItem.vue
+│  │  │  │  └─ CommentList.vue
+│  │  │  ├─ common
+│  │  │  │  ├─ Footer.vue
+│  │  │  │  ├─ Header.vue
+│  │  │  │  ├─ ImageUpload.vue
+│  │  │  │  └─ Sidebar.vue
+│  │  │  ├─ event
+│  │  │  ├─ game
+│  │  │  │  └─ GameCategories.vue
+│  │  │  ├─ NotificationBell.vue
+│  │  │  ├─ NotificationList.vue
+│  │  │  └─ post
+│  │  ├─ layouts
+│  │  │  ├─ AdminLayout.vue
+│  │  │  ├─ Layout.vue
+│  │  │  └─ MainLayout.vue
+│  │  ├─ main.js
+│  │  ├─ permission.js
+│  │  ├─ router
+│  │  │  ├─ error.js
+│  │  │  ├─ index.js
+│  │  │  └─ permission.js
+│  │  ├─ store
+│  │  │  ├─ index.js
+│  │  │  └─ modules
+│  │  │     ├─ app.js
+│  │  │     ├─ auth.js
+│  │  │     ├─ comment.js
+│  │  │     ├─ event.js
+│  │  │     ├─ game.js
+│  │  │     ├─ notification.js
+│  │  │     ├─ post.js
+│  │  │     ├─ statics.js
+│  │  │     └─ tagsView.js
+│  │  ├─ utils
+│  │  │  ├─ auth.js
+│  │  │  ├─ crypto.js
+│  │  │  ├─ form-rules.js
+│  │  │  ├─ index.js
+│  │  │  ├─ request.js
+│  │  │  ├─ validate.js
+│  │  │  └─ websocket.js
+│  │  └─ views
+│  │     ├─ admin
+│  │     │  ├─ ContentManagement.vue
+│  │     │  ├─ PostManagement.vue
+│  │     │  ├─ ReportManagement.vue
+│  │     │  └─ UserManagement.vue
+│  │     ├─ auth
+│  │     │  ├─ Login.vue
+│  │     │  └─ Register.vue
+│  │     ├─ community
+│  │     │  ├─ Community.vue
+│  │     │  ├─ PostDetail.vue
+│  │     │  ├─ PostEdit.vue
+│  │     │  └─ PostList.vue
+│  │     ├─ dashboard
+│  │     │  └─ index.vue
+│  │     ├─ error
+│  │     │  ├─ 403.vue
+│  │     │  ├─ 404.vue
+│  │     │  └─ 500.vue
+│  │     ├─ event
+│  │     │  ├─ EventDetail.vue
+│  │     │  ├─ EventForm.vue
+│  │     │  ├─ EventList.vue
+│  │     │  └─ RegistrationManagement.vue
+│  │     ├─ game
+│  │     │  ├─ GameDetail.vue
+│  │     │  └─ GameList.vue
+│  │     ├─ Home.vue
+│  │     ├─ profile
+│  │     │  ├─ index.vue
+│  │     │  └─ UserProfile.vue
+│  │     └─ settings
+│  │        └─ index.vue
+│  └─ vue.config.js
 ├─ jsconfig.json
 ├─ mvnw
 ├─ mvnw.cmd

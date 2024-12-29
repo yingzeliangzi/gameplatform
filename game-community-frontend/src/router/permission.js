@@ -1,59 +1,72 @@
-import router from './index'
-import store from '../store'
-import { getToken } from '@/utils/auth'
-import { ElMessage } from 'element-plus'
+import router from '@/router';
+import store from '@/store';
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
 
-// 白名单路由（不需要登录就可以访问的路由）
-const whiteList = ['/login', '/register', '/404']
+// NProgress 配置
+NProgress.configure({ showSpinner: false });
+
+// 不需要重定向的白名单
+const whiteList = ['/login', '/register', '/home', '/games', '/posts'];
 
 router.beforeEach(async (to, from, next) => {
-    // 获取token
-    const hasToken = getToken()
+    // 开始进度条
+    NProgress.start();
+
+    // 设置页面标题
+    document.title = to.meta.title ? `${to.meta.title} - 游戏社区` : '游戏社区';
+
+    // 确定用户是否已登录
+    const hasToken = store.getters['user/token'];
 
     if (hasToken) {
         if (to.path === '/login') {
             // 如果已登录，重定向到首页
-            next({ path: '/' })
+            next({ path: '/' });
+            NProgress.done();
         } else {
-            // 判断是否获取了用户信息
-            const hasRoles = store.state.auth.roles && store.state.auth.roles.length > 0
-            if (hasRoles) {
-                // 如果有用户角色信息，直接访问
-                if (to.meta.roles && !hasPermission(to, store.state.auth.roles)) {
-                    next({ path: '/403' })
-                } else {
-                    next()
-                }
+            // 确定用户是否已获取其用户信息
+            const hasUserInfo = store.getters['user/hasUserInfo'];
+
+            if (hasUserInfo) {
+                next();
             } else {
                 try {
                     // 获取用户信息
-                    const { roles } = await store.dispatch('auth/getUserInfo')
+                    await store.dispatch('user/getUserInfo');
 
-                    // 根据角色生成可访问路由表
-                    await store.dispatch('permission/generateRoutes', roles)
+                    // 生成可访问的路由表
+                    const accessRoutes = await store.dispatch('permission/generateRoutes');
 
-                    // 动态添加可访问路由
-                    next({ ...to, replace: true })
+                    // 动态添加可访问的路由
+                    accessRoutes.forEach(route => {
+                        router.addRoute(route);
+                    });
+
+                    // 确保addRoutes完整的hack方法
+                    next({ ...to, replace: true });
                 } catch (error) {
-                    // 获取用户信息失败，清除token并跳转登录页
-                    await store.dispatch('auth/resetToken')
-                    ElMessage.error(error.message || '验证失败，请重新登录')
-                    next(`/login?redirect=${to.path}`)
+                    // 移除 token 并跳转到登录页面重新登录
+                    await store.dispatch('user/resetToken');
+                    Message.error(error.message || '出现错误，请重新登录');
+                    next(`/login?redirect=${to.path}`);
+                    NProgress.done();
                 }
             }
         }
     } else {
-        if (whiteList.includes(to.path)) {
-            // 白名单路由直接访问
-            next()
+        if (whiteList.indexOf(to.path) !== -1) {
+            // 在免登录白名单中，直接进入
+            next();
         } else {
-            // 没有token重定向到登录页
-            next(`/login?redirect=${to.path}`)
+            // 其他没有访问权限的页面将重定向到登录页面
+            next(`/login?redirect=${to.path}`);
+            NProgress.done();
         }
     }
-})
+});
 
 router.afterEach(() => {
-    // 路由加载完成后的处理
-    // 比如关闭loading等
-})
+    // 结束进度条
+    NProgress.done();
+});

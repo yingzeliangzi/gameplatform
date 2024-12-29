@@ -3,8 +3,8 @@
     <div class="header-left">
       <div class="logo">游戏社区平台</div>
       <el-menu
-          mode="horizontal"
           :default-active="activeMenu"
+          mode="horizontal"
           router
           class="header-menu"
       >
@@ -19,13 +19,12 @@
       <el-input
           v-model="searchText"
           placeholder="搜索..."
-          prefix-icon="Search"
+          :prefix-icon="Search"
           class="search-input"
+          @keyup.enter="handleSearch"
       />
 
-      <el-badge :value="unreadCount" class="notification-badge" v-if="isLoggedIn">
-        <el-button circle icon="Bell" @click="showNotifications" />
-      </el-badge>
+      <notification-bell v-if="isLoggedIn" />
 
       <template v-if="isLoggedIn">
         <el-dropdown @command="handleCommand">
@@ -48,79 +47,69 @@
         </el-dropdown>
       </template>
       <template v-else>
-        <el-button type="primary" @click="$router.push('/login')">登录</el-button>
+        <el-button type="primary" @click="router.push('/login')">登录</el-button>
       </template>
     </div>
   </el-header>
 </template>
 
-<script>
-import { computed, ref } from 'vue'
+<script setup>
+import { ref, computed } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
+import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import NotificationBell from './NotificationBell.vue'
 
-export default {
-  name: 'AppHeader',
+const store = useStore()
+const router = useRouter()
+const route = useRoute()
 
-  setup() {
-    const store = useStore()
-    const router = useRouter()
-    const route = useRoute()
+const searchText = ref('')
 
-    const searchText = ref('')
-    const unreadCount = ref(0)
+// 计算属性
+const isLoggedIn = computed(() => store.state.auth.token)
+const username = computed(() => store.state.auth.userInfo?.username)
+const userAvatar = computed(() => store.state.auth.userInfo?.avatar || '')
+const isAdmin = computed(() => store.getters['auth/isAdmin'])
+const activeMenu = computed(() => route.path)
 
-    const isLoggedIn = computed(() => store.state.auth.token)
-    const username = computed(() => store.state.auth.userInfo.username)
-    const userAvatar = computed(() => store.state.auth.userInfo.avatar || '')
-    const isAdmin = computed(() => store.state.auth.roles.includes('admin'))
-
-    const activeMenu = computed(() => route.path)
-
-    const handleCommand = async (command) => {
-      switch (command) {
-        case 'profile':
-          router.push('/profile')
-          break
-        case 'settings':
-          router.push('/settings')
-          break
-        case 'admin':
-          router.push('/admin')
-          break
-        case 'logout':
-          try {
-            await store.dispatch('auth/logout')
-            ElMessage.success('退出成功')
-            router.push('/login')
-          } catch (error) {
-            ElMessage.error('退出失败')
-          }
-          break
+// 方法
+const handleCommand = async (command) => {
+  switch (command) {
+    case 'profile':
+      router.push('/profile')
+      break
+    case 'settings':
+      router.push('/settings')
+      break
+    case 'admin':
+      router.push('/admin')
+      break
+    case 'logout':
+      try {
+        await store.dispatch('auth/logout')
+        ElMessage.success('退出成功')
+        router.push('/login')
+      } catch (error) {
+        ElMessage.error('退出失败')
       }
-    }
-
-    const showNotifications = () => {
-      // 显示通知面板的逻辑
-    }
-
-    return {
-      searchText,
-      unreadCount,
-      isLoggedIn,
-      username,
-      userAvatar,
-      isAdmin,
-      activeMenu,
-      handleCommand,
-      showNotifications
-    }
+      break
   }
+}
+
+const handleSearch = () => {
+  if (!searchText.value.trim()) {
+    return
+  }
+  router.push({
+    path: '/search',
+    query: { q: searchText.value.trim() }
+  })
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .app-header {
   display: flex;
   align-items: center;
@@ -134,40 +123,37 @@ export default {
 .header-left {
   display: flex;
   align-items: center;
-}
+  gap: 40px;
 
-.logo {
-  font-size: 20px;
-  font-weight: bold;
-  margin-right: 40px;
-  color: #409EFF;
-}
+  .logo {
+    font-size: 20px;
+    font-weight: bold;
+    color: #409EFF;
+  }
 
-.header-menu {
-  border-bottom: none;
+  .header-menu {
+    border-bottom: none;
+  }
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 20px;
-}
 
-.search-input {
-  width: 200px;
-}
+  .search-input {
+    width: 200px;
+  }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
 
-.username {
-  margin-left: 8px;
-}
-
-.notification-badge {
-  margin-right: 10px;
+    .username {
+      color: #606266;
+    }
+  }
 }
 </style>

@@ -1,471 +1,528 @@
 <template>
-  <div class="post-detail-container">
-    <el-card v-loading="loading">
-      <!-- 帖子内容 -->
+  <div class="post-detail">
+    <!-- 帖子内容 -->
+    <div class="post-content">
       <div class="post-header">
-        <h1 class="post-title">{{ post.title }}</h1>
-        <div class="post-meta">
-          <div class="author-info">
-            <el-avatar :src="post.author?.avatar" :size="40" />
-            <span class="author-name">{{ post.author?.nickname }}</span>
+        <h1 class="title">{{ post.title }}</h1>
+        <div class="meta">
+          <el-avatar :src="post.author.avatar" :size="40"></el-avatar>
+          <div class="info">
+            <span class="author">{{ post.author.nickname }}</span>
+            <span class="time">发布于 {{ formatTime(post.createdAt) }}</span>
           </div>
-          <div class="post-info">
-            <span class="post-time">发布于 {{ formatTime(post.createdAt) }}</span>
-            <span v-if="post.gameName" class="game-tag">
-              <el-tag size="small">{{ post.gameName }}</el-tag>
-            </span>
+          <div class="actions" v-if="canManagePost">
+            <el-dropdown trigger="click" @command="handleCommand">
+              <el-button type="text">
+                <i class="el-icon-more"></i>
+              </el-button>
+              <el-dropdown-menu slot="dropdown">
+                <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                <el-dropdown-item command="delete">删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </el-dropdown>
           </div>
         </div>
       </div>
 
-      <div class="post-content">{{ post.content }}</div>
+      <div class="content" v-html="post.content"></div>
 
-      <div class="post-actions">
-        <el-button type="primary" plain :icon="ThumbsUp" @click="handleLike">
-          {{ post.likeCount }} 点赞
-        </el-button>
-        <el-button type="danger" plain :icon="Warning" @click="showReportDialog">
-          举报
-        </el-button>
-      </div>
-
-      <!-- 评论区 -->
-      <div class="comments-section">
-        <h2>评论 ({{ post.commentCount }})</h2>
-
-        <!-- 评论输入框 -->
-        <div class="comment-input">
-          <el-input
-              v-model="commentContent"
-              type="textarea"
-              :rows="3"
-              placeholder="写下你的评论..."
-          />
+      <div class="post-footer">
+        <div class="statistics">
+          <span class="views">
+            <i class="el-icon-view"></i>
+            {{ post.viewCount }} 次浏览
+          </span>
+          <span class="comments">
+            <i class="el-icon-chat-dot-round"></i>
+            {{ post.commentCount }} 条评论
+          </span>
+        </div>
+        <div class="actions">
           <el-button
-              type="primary"
-              :loading="commenting"
-              @click="submitComment"
+              type="text"
+              :class="{ 'is-liked': post.isLiked }"
+              @click="handleLike"
           >
-            发表评论
+            <i class="el-icon-star-off"></i>
+            {{ post.likeCount }}
+          </el-button>
+          <el-button type="text" @click="handleShare">
+            <i class="el-icon-share"></i>
+            分享
+          </el-button>
+          <el-button type="text" @click="handleReport" v-if="!isAuthor">
+            <i class="el-icon-warning-outline"></i>
+            举报
           </el-button>
         </div>
+      </div>
+    </div>
 
-        <!-- 评论列表 -->
-        <div class="comment-list">
-          <div
-              v-for="comment in comments"
-              :key="comment.id"
-              class="comment-item"
+    <!-- 评论区 -->
+    <div class="comment-section">
+      <div class="section-header">
+        <h2>全部评论 ({{ commentTotal }})</h2>
+        <CommentFilters @filter-change="handleFilterChange" />
+      </div>
+
+      <CommentEditor
+          v-if="isLoggedIn"
+          :submitting="commentSubmitting"
+          @submit="handleCommentSubmit"
+      />
+      <el-alert
+          v-else
+          title="登录后才能发表评论"
+          type="info"
+          show-icon
+      >
+        <template slot="title">
+          登录后才能发表评论
+          <el-button
+              type="text"
+              @click="$router.push({name: 'Login', query: {redirect: $route.fullPath}})"
           >
-            <div class="comment-header">
-              <div class="commenter-info">
-                <el-avatar :src="comment.author?.avatar" :size="32" />
-                <span class="commenter-name">{{ comment.author?.nickname }}</span>
-                <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
-              </div>
-              <div class="comment-actions">
-                <el-button
-                    text
-                    type="primary"
-                    @click="showReplyInput(comment)"
-                >
-                  回复
-                </el-button>
-                <el-button
-                    text
-                    type="danger"
-                    @click="showReportDialog('comment', comment.id)"
-                >
-                  举报
-                </el-button>
-              </div>
-            </div>
+            立即登录
+          </el-button>
+        </template>
+      </el-alert>
 
-            <div class="comment-content">{{ comment.content }}</div>
+      <CommentList
+          :comments="comments"
+          :loading="commentLoading"
+          :has-more="hasMoreComments"
+          @load-more="loadMoreComments"
+      />
+    </div>
 
-            <!-- 回复列表 -->
-            <div v-if="comment.replies?.length" class="reply-list">
-              <div
-                  v-for="reply in comment.replies"
-                  :key="reply.id"
-                  class="reply-item"
-              >
-                <div class="reply-header">
-                  <el-avatar :src="reply.author?.avatar" :size="24" />
-                  <span class="replier-name">{{ reply.author?.nickname }}</span>
-                  <span class="reply-time">{{ formatTime(reply.createdAt) }}</span>
-                </div>
-                <div class="reply-content">{{ reply.content }}</div>
-              </div>
-            </div>
-
-            <!-- 回复输入框 -->
-            <div v-if="activeReplyId === comment.id" class="reply-input">
-              <el-input
-                  v-model="replyContent"
-                  type="textarea"
-                  :rows="2"
-                  placeholder="回复评论..."
-              />
-              <div class="reply-actions">
-                <el-button @click="cancelReply">取消</el-button>
-                <el-button
-                    type="primary"
-                    :loading="replying"
-                    @click="submitReply(comment.id)"
-                >
-                  回复
-                </el-button>
-              </div>
-            </div>
+    <!-- 分享对话框 -->
+    <el-dialog
+        title="分享"
+        :visible.sync="shareDialogVisible"
+        width="400px"
+        center
+    >
+      <div class="share-content">
+        <div class="share-link">
+          <el-input
+              v-model="shareUrl"
+              readonly
+              ref="shareInput"
+          >
+            <el-button
+                slot="append"
+                @click="copyShareUrl"
+            >复制</el-button>
+          </el-input>
+        </div>
+        <div class="share-platforms">
+          <div
+              v-for="platform in sharePlatforms"
+              :key="platform.name"
+              class="platform-item"
+              @click="shareToPlateform(platform)"
+          >
+            <i :class="platform.icon"></i>
+            <span>{{ platform.name }}</span>
           </div>
         </div>
       </div>
-    </el-card>
+    </el-dialog>
 
     <!-- 举报对话框 -->
     <el-dialog
-        v-model="reportDialogVisible"
         title="举报内容"
+        :visible.sync="reportDialogVisible"
         width="500px"
     >
       <el-form
-          ref="reportForm"
           :model="reportForm"
           :rules="reportRules"
+          ref="reportForm"
           label-width="80px"
       >
-        <el-form-item label="举报原因" prop="reason">
+        <el-form-item label="举报理由" prop="reason">
+          <el-select v-model="reportForm.reason" placeholder="请选择举报理由">
+            <el-option
+                v-for="reason in reportReasons"
+                :key="reason.value"
+                :label="reason.label"
+                :value="reason.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="补充说明" prop="description">
           <el-input
-              v-model="reportForm.reason"
               type="textarea"
+              v-model="reportForm.description"
               :rows="4"
-              placeholder="请详细描述举报原因..."
+              placeholder="请详细说明举报原因（选填）"
           />
         </el-form-item>
       </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="reportDialogVisible = false">取消</el-button>
-          <el-button
-              type="primary"
-              :loading="reporting"
-              @click="submitReport"
-          >
-            提交
-          </el-button>
-        </span>
-      </template>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="reportDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitReport" :loading="reportSubmitting">
+          提交举报
+        </el-button>
+      </span>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ThumbsUp, Warning } from '@element-plus/icons-vue'
-import {
-  getPostDetail,
-  addComment,
-  replyComment,
-  reportContent,
-  likePost
-} from '@/api/post'
-import { formatDistanceToNow } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { mapGetters, mapActions } from 'vuex';
+import { formatTime } from '@/utils/time';
+import CommentList from '@/components/comments/CommentList.vue';
+import CommentEditor from '@/components/comments/CommentEditor.vue';
+import CommentFilters from '@/components/comments/CommentFilters.vue';
 
 export default {
   name: 'PostDetail',
+
   components: {
-    ThumbsUp,
-    Warning
+    CommentList,
+    CommentEditor,
+    CommentFilters
   },
 
-  setup() {
-    const route = useRoute()
-    const loading = ref(false)
-    const commenting = ref(false)
-    const replying = ref(false)
-    const reporting = ref(false)
-    const post = ref({})
-    const comments = ref([])
-    const commentContent = ref('')
-    const replyContent = ref('')
-    const activeReplyId = ref(null)
-    const reportDialogVisible = ref(false)
-    const reportForm = ref({
-      type: 'post',
-      targetId: null,
-      reason: ''
-    })
-
-    const reportRules = {
-      reason: [
-        { required: true, message: '请输入举报原因', trigger: 'blur' },
-        { min: 10, message: '举报原因至少10个字符', trigger: 'blur' }
-      ]
+  props: {
+    id: {
+      type: [String, Number],
+      required: true
     }
+  },
 
-    // 获取帖子详情
-    const fetchPostDetail = async () => {
-      loading.value = true
-      try {
-        const res = await getPostDetail(route.params.id)
-        post.value = res.data
-        comments.value = res.data.comments || []
-      } catch (error) {
-        ElMessage.error('获取帖子详情失败')
-      } finally {
-        loading.value = false
-      }
-    }
-
-    // 提交评论
-    const submitComment = async () => {
-      if (!commentContent.value.trim()) {
-        ElMessage.warning('请输入评论内容')
-        return
-      }
-
-      commenting.value = true
-      try {
-        const res = await addComment(post.value.id, {
-          content: commentContent.value
-        })
-        comments.value.unshift(res.data)
-        commentContent.value = ''
-        ElMessage.success('评论成功')
-      } catch (error) {
-        ElMessage.error('评论失败')
-      } finally {
-        commenting.value = false
-      }
-    }
-
-    // 回复评论
-    const submitReply = async (commentId) => {
-      if (!replyContent.value.trim()) {
-        ElMessage.warning('请输入回复内容')
-        return
-      }
-
-      replying.value = true
-      try {
-        const res = await replyComment(commentId, {
-          content: replyContent.value
-        })
-        // 更新评论列表中的回复
-        const comment = comments.value.find(c => c.id === commentId)
-        if (comment) {
-          if (!comment.replies) comment.replies = []
-          comment.replies.push(res.data)
-        }
-        replyContent.value = ''
-        activeReplyId.value = null
-        ElMessage.success('回复成功')
-      } catch (error) {
-        ElMessage.error('回复失败')
-      } finally {
-        replying.value = false
-      }
-    }
-
-    // 举报功能
-    const showReportDialog = (type = 'post', targetId = null) => {
-      reportForm.value.type = type
-      reportForm.value.targetId = targetId || post.value.id
-      reportDialogVisible.value = true
-    }
-
-    const submitReport = async () => {
-      reporting.value = true
-      try {
-        await reportContent(reportForm.value)
-        reportDialogVisible.value = false
-        ElMessage.success('举报已提交')
-      } catch (error) {
-        ElMessage.error('举报失败')
-      } finally {
-        reporting.value = false
-      }
-    }
-
-    // 点赞功能
-    const handleLike = async () => {
-      try {
-        await likePost(post.value.id)
-        post.value.likeCount++
-        ElMessage.success('点赞成功')
-      } catch (error) {
-        ElMessage.error('点赞失败')
-      }
-    }
-
-    const formatTime = (time) => {
-      return formatDistanceToNow(new Date(time), { addSuffix: true, locale: zhCN })
-    }
-
-    onMounted(() => {
-      fetchPostDetail()
-    })
-
+  data() {
     return {
-      loading,
-      commenting,
-      replying,
-      reporting,
-      post,
-      comments,
-      commentContent,
-      replyContent,
-      activeReplyId,
-      reportDialogVisible,
-      reportForm,
-      reportRules,
-      ThumbsUp,
-      Warning,
-      formatTime,
-      submitComment,
-      submitReply,
-      showReportDialog,
-      submitReport,
-      handleLike,
-      showReplyInput: (comment) => {
-        activeReplyId.value = comment.id
+      shareDialogVisible: false,
+      reportDialogVisible: false,
+      reportSubmitting: false,
+      reportForm: {
+        reason: '',
+        description: ''
       },
-      cancelReply: () => {
-        activeReplyId.value = null
-        replyContent.value = ''
+      reportRules: {
+        reason: [
+          { required: true, message: '请选择举报理由', trigger: 'change' }
+        ]
+      },
+      reportReasons: [
+        { label: '垃圾广告', value: 'spam' },
+        { label: '不当内容', value: 'inappropriate' },
+        { label: '侵犯权益', value: 'infringement' },
+        { label: '其他原因', value: 'other' }
+      ],
+      sharePlatforms: [
+        { name: '微信', icon: 'el-icon-wechat' },
+        { name: 'QQ', icon: 'el-icon-qq' },
+        { name: '微博', icon: 'el-icon-weibo' }
+      ]
+    };
+  },
+
+  computed: {
+    ...mapGetters({
+      post: 'post/currentPost',
+      isLoggedIn: 'user/isLoggedIn',
+      currentUser: 'user/currentUser',
+      comments: 'comment/comments',
+      commentTotal: 'comment/total',
+      commentLoading: 'comment/loading',
+      commentSubmitting: 'comment/submitting',
+      hasMoreComments: 'comment/hasMore'
+    }),
+
+    isAuthor() {
+      return this.post?.author?.id === this.currentUser?.id;
+    },
+
+    canManagePost() {
+      return this.isAuthor || (this.currentUser?.roles || []).includes('ADMIN');
+    },
+
+    shareUrl() {
+      return window.location.href;
+    }
+  },
+
+  created() {
+    this.fetchPostDetail(this.id);
+    this.fetchComments({
+      postId: this.id,
+      reset: true
+    });
+  },
+
+  methods: {
+    formatTime,
+
+    ...mapActions({
+      fetchPostDetail: 'post/fetchDetail',
+      fetchComments: 'comment/fetchComments',
+      createComment: 'comment/createComment',
+      likePost: 'post/likePost',
+      unlikePost: 'post/unlikePost',
+      reportPost: 'post/reportPost',
+      deletePost: 'post/deletePost'
+    }),
+
+    handleCommand(command) {
+      switch (command) {
+        case 'edit':
+          this.$router.push(`/posts/${this.id}/edit`);
+          break;
+        case 'delete':
+          this.handleDelete();
+          break;
+      }
+    },
+
+    async handleDelete() {
+      try {
+        await this.$confirm('确定要删除这篇帖子吗？', '提示', {
+          type: 'warning'
+        });
+        await this.deletePost(this.id);
+        this.$message.success('删除成功');
+        this.$router.push('/posts');
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除失败');
+        }
+      }
+    },
+
+    async handleLike() {
+      if (!this.isLoggedIn) {
+        this.$message.warning('请先登录');
+        return;
+      }
+
+      try {
+        if (this.post.isLiked) {
+          await this.unlikePost(this.id);
+        } else {
+          await this.likePost(this.id);
+        }
+      } catch (error) {
+        this.$message.error('操作失败');
+      }
+    },
+
+    handleShare() {
+      this.shareDialogVisible = true;
+    },
+
+    copyShareUrl() {
+      this.$refs.shareInput.$el.querySelector('input').select();
+      document.execCommand('copy');
+      this.$message.success('链接已复制');
+    },
+
+    shareToPlateform(platform) {
+      // 实现各平台的分享逻辑
+      console.log('Share to', platform.name);
+      this.shareDialogVisible = false;
+    },
+
+    handleReport() {
+      if (!this.isLoggedIn) {
+        this.$message.warning('请先登录');
+        return;
+      }
+      this.reportDialogVisible = true;
+    },
+
+    async submitReport() {
+      try {
+        await this.$refs.reportForm.validate();
+        this.reportSubmitting = true;
+        await this.reportPost({
+          postId: this.id,
+          reason: this.reportForm.reason,
+          description: this.reportForm.description
+        });
+
+        this.$message.success('举报已提交');
+        this.reportDialogVisible = false;
+        this.reportForm.reason = '';
+        this.reportForm.description = '';
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('举报提交失败');
+        }
+      } finally {
+        this.reportSubmitting = false;
+      }
+    },
+
+    async handleCommentSubmit(content) {
+      try {
+        await this.createComment({
+          postId: this.id,
+          content
+        });
+        this.$message.success('评论发表成功');
+      } catch (error) {
+        this.$message.error('评论发表失败');
+      }
+    },
+
+    handleFilterChange(filters) {
+      this.fetchComments({
+        postId: this.id,
+        reset: true,
+        filters
+      });
+    },
+
+    loadMoreComments() {
+      if (!this.commentLoading && this.hasMoreComments) {
+        this.fetchComments({
+          postId: this.id
+        });
+      }
+    }
+  }
+};
+</script>
+
+<style lang="scss" scoped>
+.post-detail {
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+
+  .post-content {
+    .post-header {
+      margin-bottom: 20px;
+
+      .title {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 15px;
+      }
+
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .info {
+          display: flex;
+          flex-direction: column;
+
+          .author {
+            font-size: 16px;
+            font-weight: 500;
+          }
+
+          .time {
+            font-size: 14px;
+            color: #999;
+          }
+        }
+
+        .actions {
+          margin-left: auto;
+        }
+      }
+    }
+
+    .content {
+      font-size: 16px;
+      line-height: 1.8;
+      margin-bottom: 30px;
+    }
+
+    .post-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+
+      .statistics {
+        display: flex;
+        gap: 20px;
+        color: #666;
+
+        span {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+      }
+
+      .actions {
+        display: flex;
+        gap: 15px;
+
+        .el-button {
+          font-size: 16px;
+
+          &.is-liked {
+            color: #409EFF;
+          }
+
+          i {
+            margin-right: 5px;
+          }
+        }
+      }
+    }
+  }
+
+  .comment-section {
+    margin-top: 30px;
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+
+      h2 {
+        font-size: 18px;
+        font-weight: bold;
       }
     }
   }
 }
-</script>
 
-<style scoped>
-.post-detail-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
+.share-content {
+  .share-link {
+    margin-bottom: 20px;
+  }
 
-.post-header {
-  margin-bottom: 30px;
-}
+  .share-platforms {
+    display: flex;
+    justify-content: space-around;
 
-.post-title {
-  margin: 0 0 20px 0;
-  font-size: 24px;
-}
+    .platform-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 4px;
+      transition: background-color 0.3s;
 
-.post-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+      &:hover {
+        background-color: #f5f7fa;
+      }
 
-.author-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+      i {
+        font-size: 24px;
+      }
 
-.author-name {
-  font-weight: bold;
-}
-
-.post-info {
-  color: #909399;
-  font-size: 14px;
-}
-
-.post-content {
-  font-size: 16px;
-  line-height: 1.8;
-  margin: 30px 0;
-  white-space: pre-wrap;
-}
-
-.post-actions {
-  display: flex;
-  gap: 15px;
-  margin: 20px 0;
-  padding: 20px 0;
-  border-top: 1px solid #ebeef5;
-  border-bottom: 1px solid #ebeef5;
-}
-
-.comments-section {
-  margin-top: 30px;
-}
-
-.comment-input {
-  margin: 20px 0;
-}
-
-.comment-input .el-button {
-  margin-top: 10px;
-  float: right;
-}
-
-.comment-item {
-  padding: 20px 0;
-  border-bottom: 1px solid #ebeef5;
-}
-
-.comment-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.commenter-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.comment-time {
-  color: #909399;
-  font-size: 12px;
-}
-
-.comment-content {
-  margin: 10px 0;
-  line-height: 1.6;
-}
-
-.reply-list {
-  margin: 15px 0 15px 40px;
-  padding: 15px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-}
-
-.reply-item {
-  padding: 10px 0;
-}
-
-.reply-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 5px;
-}
-
-.reply-time {
-  color: #909399;
-  font-size: 12px;
-}
-
-.reply-input {
-  margin: 15px 0 15px 40px;
-}
-
-.reply-actions {
-  margin-top: 10px;
-  text-align: right;
+      span {
+        font-size: 14px;
+      }
+    }
+  }
 }
 </style>
