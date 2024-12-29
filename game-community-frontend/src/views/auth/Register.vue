@@ -131,7 +131,6 @@ export default defineComponent({
     }
 
     const loading = ref(false)
-    const registerForm = ref(null)
 
     const handleRegister = () => {
       registerForm.value?.validate((valid) => {

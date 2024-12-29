@@ -179,7 +179,6 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Picture, Calendar, Location } from '@element-plus/icons-vue'
-import { format } from 'date-fns'
 import { registerEvent, cancelRegistration } from '@/api/event'
 
 export default {

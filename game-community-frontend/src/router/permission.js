@@ -1,6 +1,6 @@
 import router from './index'
 import store from '../store'
-import { getToken } from '../utils/auth'
+import { getToken } from '@/utils/auth'
 import { ElMessage } from 'element-plus'
 
 // 白名单路由（不需要登录就可以访问的路由）

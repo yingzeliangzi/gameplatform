@@ -79,7 +79,6 @@ export default defineComponent({
     }
 
     const loading = ref(false)
-    const loginForm = ref(null)
 
     const handleLogin = () => {
       loginForm.value?.validate((valid) => {
