@@ -1,6 +1,8 @@
 package com.gameplatform.service.impl;
+
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.dto.GameDTO;
+import com.gameplatform.model.dto.GameSearchDTO;
 import com.gameplatform.model.entity.Game;
 import com.gameplatform.model.entity.UserGame;
 import com.gameplatform.model.entity.User;
@@ -17,10 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +31,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class GameServiceImpl implements GameService {
+
     private final GameRepository gameRepository;
     private final UserRepository userRepository;
     private final UserGameRepository userGameRepository;
@@ -47,47 +47,25 @@ public class GameServiceImpl implements GameService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<GameDTO> searchGames(GameDTO searchDTO, Pageable pageable) {
+    public Page<GameDTO> searchGames(GameSearchDTO searchDTO, Pageable pageable) {
         Page<Game> games;
-
-        if (searchDTO.getCategories() != null && !searchDTO.getCategories().isEmpty()) {
-            games = gameRepository.findByCategoriesIn(searchDTO.getCategories(), pageable);
-        } else if (searchDTO.getTitle() != null && !searchDTO.getTitle().isEmpty()) {
-            games = gameRepository.findByTitleContainingIgnoreCase(searchDTO.getTitle(), pageable);
-        } else {
+        if (searchDTO == null) {
             games = gameRepository.findAll(pageable);
+        } else {
+            games = gameRepository.findBySearchCriteria(
+                    searchDTO.getTitle(),
+                    searchDTO.getCategories(),
+                    searchDTO.getMinRating(),
+                    pageable
+            );
         }
-
         return games.map(this::convertToDTO);
     }
 
     @Override
-    @Transactional
-    public GameDTO createGame(GameDTO gameDTO, MultipartFile coverImage) {
-        // 验证游戏标题是否唯一
-        if (gameRepository.existsByTitle(gameDTO.getTitle())) {
-            throw new BusinessException("游戏标题已存在");
-        }
-
-        Game game = new Game();
-        BeanUtils.copyProperties(gameDTO, game, "id", "coverImage", "screenshots");
-
-        // 处理封面图片
-        if (coverImage != null && !coverImage.isEmpty()) {
-            try {
-                String imagePath = fileUtil.saveFile(coverImage, "games/covers");
-                game.setCoverImage(imagePath);
-            } catch (IOException e) {
-                throw new BusinessException("封面图片上传失败");
-            }
-        }
-
-        // 初始化评分和人气
-        game.setRating(0.0);
-        game.setRatingCount(0);
-        game.setPopularity(0);
-
-        return convertToDTO(gameRepository.save(game));
+    @Transactional(readOnly = true)
+    public List<String> getAllCategories() {
+        return gameRepository.findAllCategories();
     }
 
     @Override
@@ -97,21 +75,14 @@ public class GameServiceImpl implements GameService {
             throw new BusinessException("评分必须在0-5之间");
         }
 
-        Game game = gameRepository.findById(gameId)
-                .orElseThrow(() -> new BusinessException("游戏不存在"));
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("用户不存在"));
-
         UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
                 .orElseThrow(() -> new BusinessException("您还没有这款游戏"));
 
-        // 更新用户评分
         userGame.setUserRating(rating);
         userGameRepository.save(userGame);
 
         // 更新游戏总评分
-        updateGameRating(game);
+        updateGameRating(userGame.getGame());
     }
 
     @Override
@@ -122,7 +93,6 @@ public class GameServiceImpl implements GameService {
             throw new BusinessException("没有找到游戏记录");
         }
 
-        // 生成CSV格式的数据
         StringBuilder csv = new StringBuilder();
         csv.append("游戏名称,购买时间,游戏时长,最后游玩时间,评分\n");
 
@@ -137,6 +107,13 @@ public class GameServiceImpl implements GameService {
         }
 
         return csv.toString().getBytes();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<GameDTO> getUserGames(Long userId, Pageable pageable) {
+        return userGameRepository.findByUserId(userId, pageable)
+                .map(userGame -> convertToDTO(userGame.getGame()));
     }
 
     @Override
@@ -155,9 +132,6 @@ public class GameServiceImpl implements GameService {
         UserGame userGame = new UserGame();
         userGame.setGame(game);
         userGame.setUser(user);
-        userGame.setPurchasedAt(LocalDateTime.now());
-        userGame.setPlayTime(0);
-
         userGameRepository.save(userGame);
 
         // 更新游戏人气
@@ -167,39 +141,28 @@ public class GameServiceImpl implements GameService {
 
     @Override
     @Transactional
-    public void updateGameScreenshots(Long gameId, List<MultipartFile> screenshots) {
-        Game game = gameRepository.findById(gameId)
-                .orElseThrow(() -> new BusinessException("游戏不存在"));
+    public void removeGameFromUser(Long gameId, Long userId) {
+        UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new BusinessException("未拥有该游戏"));
 
-        List<String> screenshotPaths = new ArrayList<>();
-        for (MultipartFile screenshot : screenshots) {
-            try {
-                String path = fileUtil.saveFile(screenshot, "games/screenshots");
-                screenshotPaths.add(path);
-            } catch (IOException e) {
-                throw new BusinessException("截图上传失败");
-            }
-        }
-
-        // 删除旧的截图
-        if (game.getScreenshots() != null) {
-            for (String oldPath : game.getScreenshots()) {
-                fileUtil.deleteFile(oldPath);
-            }
-        }
-
-        game.setScreenshots(new HashSet<>(screenshotPaths));
+        // 更新游戏人气
+        Game game = userGame.getGame();
+        game.setPopularity(game.getPopularity() - 1);
         gameRepository.save(game);
+
+        // 删除用户游戏关联
+        userGameRepository.delete(userGame);
     }
 
     private void updateGameRating(Game game) {
         List<UserGame> userGames = userGameRepository.findByGameId(game.getId());
-        OptionalDouble avgRating = userGames.stream()
+        double avgRating = userGames.stream()
                 .filter(ug -> ug.getUserRating() != null)
                 .mapToDouble(UserGame::getUserRating)
-                .average();
+                .average()
+                .orElse(0.0);
 
-        game.setRating(avgRating.orElse(0.0));
+        game.setRating(avgRating);
         game.setRatingCount((int) userGames.stream()
                 .filter(ug -> ug.getUserRating() != null)
                 .count());
@@ -210,17 +173,6 @@ public class GameServiceImpl implements GameService {
     private GameDTO convertToDTO(Game game) {
         GameDTO dto = new GameDTO();
         BeanUtils.copyProperties(game, dto);
-
-        if (game.getCoverImage() != null) {
-            dto.setCoverImage(fileUtil.getFileUrl(game.getCoverImage()));
-        }
-
-        if (game.getScreenshots() != null) {
-            dto.setScreenshots(game.getScreenshots().stream()
-                    .map(fileUtil::getFileUrl)
-                    .collect(Collectors.toSet()));
-        }
-
         return dto;
     }
 }

@@ -1,5 +1,7 @@
 server:
   port: 8080
+  servlet:
+    context-path: /api
 
 spring:
   datasource:
@@ -25,14 +27,20 @@ spring:
   mail:
     host: smtp.example.com        # SMTP服务器地址
     port: 587                     # SMTP端口，常用587或465
-    username: your-email@example.com  # SMTP账号
-    password: your-password       # SMTP密码
+    username: email@example.com  # SMTP账号
+    password: password       # SMTP密码
     properties:
       mail:
         smtp:
           auth: true             # 启用SMTP认证
           starttls:
             enable: true         # 启用STARTTLS加密
+
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 60000
 
 jwt:
   secret: 1145141919810
@@ -51,5 +59,6 @@ logging:
   level:
     root: INFO
     com.gameplatform: DEBUG
+    org.springframework.security: DEBUG
 
 

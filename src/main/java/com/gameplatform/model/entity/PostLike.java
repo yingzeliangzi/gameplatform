@@ -14,8 +14,7 @@ import java.time.LocalDateTime;
  */
 @Data
 @Entity
-@Table(name = "post_likes",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"post_id", "user_id"}))
+@Table(name = "post_likes")
 public class PostLike {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

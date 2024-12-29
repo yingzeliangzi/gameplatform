@@ -9,12 +9,8 @@ import java.util.Map;
  * @description TODO
  */
 public interface SettingsService {
-    Map<String, String> getSystemSettings();
-    void updateSystemSettings(Map<String, String> settings);
-    Map<String, String> getUserSettings(Long userId);
-    void updateUserSettings(Long userId, Map<String, String> settings);
+    Map<String, Object> getSystemSettings();
+    void updateSystemSettings(Map<String, Object> settings);
     String getSettingValue(String key);
-    String getUserSettingValue(Long userId, String key);
-    void initializeDefaultSettings();
-    void initializeUserSettings(Long userId);
+    void setSetting(String key, String value);
 }

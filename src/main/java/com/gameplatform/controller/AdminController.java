@@ -1,5 +1,8 @@
 package com.gameplatform.controller;
+
 import com.gameplatform.model.dto.UserDTO;
+import com.gameplatform.service.StatisticsService;
+import com.gameplatform.service.SettingsService;
 import com.gameplatform.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -8,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Set;
 
 
@@ -24,6 +28,8 @@ import java.util.Set;
 public class AdminController {
 
     private final UserService userService;
+    private final StatisticsService statisticsService;
+    private final SettingsService settingsService;
 
     @GetMapping("/users")
     public ResponseEntity<Page<UserDTO>> getUsers(
@@ -58,16 +64,13 @@ public class AdminController {
         return ResponseEntity.ok().build();
     }
 
-    // 其他管理功能...
-    // 统计数据
     @GetMapping("/statistics")
-    public ResponseEntity<?> getStatistics() {
-        return ResponseEntity.ok(statisticsService.getAdminStatistics());
+    public ResponseEntity<Map<String, Object>> getStatistics() {
+        return ResponseEntity.ok(statisticsService.getAdminDashboardStatistics());
     }
 
-    // 系统配置
     @GetMapping("/settings")
-    public ResponseEntity<?> getSettings() {
+    public ResponseEntity<Map<String, Object>> getSettings() {
         return ResponseEntity.ok(settingsService.getSystemSettings());
     }
 

@@ -1,4 +1,5 @@
 package com.gameplatform.repository;
+
 import com.gameplatform.model.entity.EventRegistration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -6,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,10 +19,30 @@ import java.util.Optional;
  * @description TODO
  */
 public interface EventRegistrationRepository extends JpaRepository<EventRegistration, Long> {
+
+    boolean existsByEventIdAndUserIdAndStatus(
+            Long eventId,
+            Long userId,
+            EventRegistration.RegistrationStatus status
+    );
+
     Optional<EventRegistration> findByEventIdAndUserId(Long eventId, Long userId);
-    List<EventRegistration> findByEventId(Long eventId);
-    List<EventRegistration> findByUserId(Long userId);
-    boolean existsByEventIdAndUserIdAndStatus(Long eventId, Long userId, EventRegistration.RegistrationStatus status);
-    @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.event.id = :eventId AND er.status = :status")
-    long countByEventIdAndStatus(@Param("eventId") Long eventId, @Param("status") EventRegistration.RegistrationStatus status);
+
+    Page<EventRegistration> findByUserId(Long userId, Pageable pageable);
+
+    Page<EventRegistration> findByEventId(Long eventId, Pageable pageable);
+
+    List<EventRegistration> findByEventIdAndStatus(
+            Long eventId,
+            EventRegistration.RegistrationStatus status
+    );
+
+    @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.registeredAt BETWEEN :start AND :end")
+    long countByRegisteredAtBetween(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.user.id = :userId")
+    long countByUserId(@Param("userId") Long userId);
 }
