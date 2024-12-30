@@ -87,7 +87,8 @@ export default defineComponent({
           store.dispatch('auth/login', loginForm)
               .then(() => {
                 ElMessage.success('登录成功')
-                router.push('/')
+                const redirect = route.query.redirect || '/'
+                router.push(redirect)
               })
               .catch(() => {
                 ElMessage.error('登录失败，请检查用户名和密码')

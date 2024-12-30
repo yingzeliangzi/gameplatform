@@ -90,21 +90,16 @@ const routes = [
         ]
     },
     {
-        path: '/auth',
-        children: [
-            {
-                path: 'login',
-                name: 'Login',
-                component: Login,
-                meta: { title: '登录' }
-            },
-            {
-                path: 'register',
-                name: 'Register',
-                component: Register,
-                meta: { title: '注册' }
-            }
-        ]
+        path: '/login',
+        name: 'Login',
+        component: () => import('@/views/auth/Login.vue'),
+        meta: { title: '登录' }
+    },
+    {
+        path: '/register',
+        name: 'Register',
+        component: () => import('@/views/auth/Register.vue'),
+        meta: { title: '注册' }
     },
     {
         path: '/admin',

@@ -37,10 +37,20 @@ request.interceptors.response.use(
 
         // 如果接口返回错误码
         if (res.code && res.code !== 200) {
-            handleError(res)
+            // 401: 未登录或Token过期
+            if (res.code === 401) {
+                MessageBox.confirm('登录状态已过期，请重新登录', '系统提示', {
+                    confirmButtonText: '重新登录',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    store.dispatch('auth/resetToken').then(() => {
+                        location.reload()
+                    })
+                })
+            }
             return Promise.reject(new Error(res.message || 'Error'))
         }
-
         return res
     },
     error => {
