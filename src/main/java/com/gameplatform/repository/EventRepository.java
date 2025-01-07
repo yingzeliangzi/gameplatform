@@ -29,4 +29,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     long countByGameId(Long gameId);
     @Query("SELECT e FROM Event e WHERE e.game.id = :gameId")
     Page<Event> findByGameId(@Param("gameId") Long gameId, Pageable pageable);
+    Page<Event> findByTitleContainingIgnoreCase(String title, Pageable pageable);
+    @Query("SELECT e FROM Event e WHERE e.title LIKE %:keyword%")
+    Page<Event> searchByKeyword(@Param("keyword") String keyword, Pageable pageable)
 }

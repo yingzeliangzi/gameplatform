@@ -1,9 +1,10 @@
 package com.gameplatform.service;
 
+import com.gameplatform.model.dto.EventDTO;
 import com.gameplatform.model.entity.Event;
 import com.gameplatform.model.entity.EventRegistration;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -13,32 +14,27 @@ import java.util.List;
  * @date 2024/12/28 15:12
  * @description TODO
  */
-public interface EventService extends BaseEventService {
-
-    // 获取指定时间范围内的事件
-    List<Event> getEventsStartingBetween(LocalDateTime start, LocalDateTime end);
-
-    // 查找待处理的事件
-    List<Event> findPendingEvents();
-
-    // 更新事件状态
-    void updateEventStatus(Long eventId, Event.EventStatus status);
-
-    // 检查事件容量
-    boolean checkEventCapacity(Long eventId);
-
-    // 获取事件参与者
-    List<EventRegistration> getEventParticipants(Long eventId);
-
-    // 取消事件
+public interface EventService {
+    EventDTO createEvent(EventDTO eventDTO);
+    EventDTO updateEvent(Long eventId, EventDTO eventDTO);
+    void deleteEvent(Long eventId);
+    EventDTO getEventById(Long id, Long userId);
+    Page<EventDTO> searchEvents(String keyword, Event.EventType type, Long userId, Pageable pageable);
+    Page<EventDTO> getOngoingEvents(Long userId, Pageable pageable);
+    Page<EventDTO> getUpcomingEvents(Long userId, Pageable pageable);
+    EventDTO registerForEvent(Long eventId, Long userId, EventDTO registrationDTO);
+    void cancelRegistration(Long eventId, Long userId);
     void cancelEvent(Long eventId);
 
-    // 更新事件详情
+    // 补充缺失的方法
+    List<Event> getEventsStartingBetween(LocalDateTime start, LocalDateTime end);
+    List<Event> findPendingEvents();
+    void updateEventStatus(Long eventId, Event.EventStatus status);
+    boolean checkEventCapacity(Long eventId);
+    List<EventRegistration> getEventParticipants(Long eventId);
     Event updateEventDetails(Long eventId, Event eventDetails);
-
-    // 获取用户的事件
     List<Event> getUserEvents(Long userId, Pageable pageable);
-
-    // 发送事件提醒
     void sendEventReminders(Event event);
+    List<Event> findByEndTimeBetween(LocalDateTime start, LocalDateTime end);
+    List<Event> findByStatus(Event.EventStatus status);
 }

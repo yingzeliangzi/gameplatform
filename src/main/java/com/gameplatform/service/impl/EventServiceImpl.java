@@ -3,13 +3,12 @@ package com.gameplatform.service.impl;
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.dto.EventDTO;
 import com.gameplatform.model.dto.EventListItemDTO;
-import com.gameplatform.model.dto.EventRegistrationDTO;
 import com.gameplatform.model.dto.NotificationDTO;
 import com.gameplatform.model.entity.*;
 import com.gameplatform.repository.EventRepository;
 import com.gameplatform.repository.EventRegistrationRepository;
-import com.gameplatform.repository.UserRepository;
 import com.gameplatform.repository.GameRepository;
+import com.gameplatform.repository.UserRepository;
 import com.gameplatform.service.EventService;
 import com.gameplatform.service.NotificationService;
 import com.gameplatform.util.FileUtil;
@@ -18,7 +17,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,23 +40,6 @@ public class EventServiceImpl implements EventService {
     private final GameRepository gameRepository;
     private final NotificationService notificationService;
     private final FileUtil fileUtil;
-
-    @Override
-    @Transactional
-    public void sendEventReminders(Event event) {
-        // 获取所有报名用户
-        List<EventRegistration> registrations = registrationRepository
-                .findByEventIdAndStatus(event.getId(), EventRegistration.RegistrationStatus.REGISTERED);
-
-        // 给每个用户发送提醒
-        for (EventRegistration registration : registrations) {
-            NotificationDTO notification = new NotificationDTO();
-            notification.setTitle("活动即将开始");
-            notification.setContent("您报名的活动「" + event.getTitle() + "」将在一小时后开始");
-            notification.setType(Notification.NotificationType.EVENT_REMINDER);
-            notificationService.sendNotification(registration.getUser().getId(), notification);
-        }
-    }
 
     private void notifyNewEvent(Event event) {
         if (event.getGame() != null) {
@@ -433,6 +414,71 @@ public class EventServiceImpl implements EventService {
         return event.getRegistrations().stream()
                 .filter(r -> r.getStatus() == EventRegistration.RegistrationStatus.REGISTERED)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventDTO getEventById(Long id, Long userId) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+        EventDTO dto = convertToDTO(event);
+
+        if (userId != null) {
+            dto.setRegistered(registrationRepository.existsByEventIdAndUserIdAndStatus(
+                    id, userId, EventRegistration.RegistrationStatus.REGISTERED));
+        }
+
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventDTO> searchEvents(String keyword, Event.EventType type, Long userId, Pageable pageable) {
+        Page<Event> events;
+        if (type != null) {
+            events = eventRepository.findByType(type, pageable);
+        } else if (keyword != null && !keyword.isEmpty()) {
+            events = eventRepository.findByTitleContainingIgnoreCase(keyword, pageable);
+        } else {
+            events = eventRepository.findAll(pageable);
+        }
+
+        List<EventDTO> dtos = events.getContent().stream()
+                .map(event -> {
+                    EventDTO dto = convertToDTO(event);
+                    if (userId != null) {
+                        dto.setRegistered(registrationRepository.existsByEventIdAndUserIdAndStatus(
+                                event.getId(), userId, EventRegistration.RegistrationStatus.REGISTERED));
+                    }
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, events.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> getUserEvents(Long userId, Pageable pageable) {
+        return registrationRepository.findByUserId(userId, pageable)
+                .stream()
+                .map(EventRegistration::getEvent)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void sendEventReminders(Event event) {
+        List<EventRegistration> registrations = registrationRepository
+                .findByEventIdAndStatus(event.getId(), EventRegistration.RegistrationStatus.REGISTERED);
+
+        for (EventRegistration registration : registrations) {
+            NotificationDTO notification = new NotificationDTO();
+            notification.setTitle("活动提醒");
+            notification.setContent("您报名的活动「" + event.getTitle() + "」即将开始");
+            notification.setType(Notification.NotificationType.EVENT_REMINDER);
+            notificationService.sendNotification(registration.getUser().getId(), notification);
+        }
     }
 }
 

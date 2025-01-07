@@ -1,6 +1,7 @@
 package com.gameplatform.model.dto;
 
 import com.gameplatform.model.entity.Event;
+import com.gameplatform.model.entity.Game;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,11 +16,14 @@ import java.time.LocalDateTime;
 public class EventListItemDTO {
     private Long id;
     private String title;
-    private String type;
+    private Event.EventType type;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Integer currentParticipants;
     private Integer maxParticipants;
-    private String status;
+    private Event.EventStatus status;
     private boolean isRegistered;
+    private Game game;
+    private String location;
+    private String description;
 }
