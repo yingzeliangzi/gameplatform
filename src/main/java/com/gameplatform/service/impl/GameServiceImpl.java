@@ -10,15 +10,15 @@ import com.gameplatform.repository.GameRepository;
 import com.gameplatform.repository.UserGameRepository;
 import com.gameplatform.repository.UserRepository;
 import com.gameplatform.service.GameService;
-import com.gameplatform.util.FileUtil;
+import com.gameplatform.service.CacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,7 +35,7 @@ public class GameServiceImpl implements GameService {
     private final GameRepository gameRepository;
     private final UserRepository userRepository;
     private final UserGameRepository userGameRepository;
-    private final FileUtil fileUtil;
+    private final CacheService cacheService;
 
     @Override
     @Transactional(readOnly = true)
@@ -48,18 +48,12 @@ public class GameServiceImpl implements GameService {
     @Override
     @Transactional(readOnly = true)
     public Page<GameDTO> searchGames(GameSearchDTO searchDTO, Pageable pageable) {
-        Page<Game> games;
-        if (searchDTO == null) {
-            games = gameRepository.findAll(pageable);
-        } else {
-            games = gameRepository.findBySearchCriteria(
-                    searchDTO.getTitle(),
-                    searchDTO.getCategories(),
-                    searchDTO.getMinRating(),
-                    pageable
-            );
-        }
-        return games.map(this::convertToDTO);
+        return gameRepository.findBySearchCriteria(
+                searchDTO.getTitle(),
+                searchDTO.getCategories(),
+                searchDTO.getMinRating(),
+                pageable
+        ).map(this::convertToDTO);
     }
 
     @Override
@@ -75,6 +69,9 @@ public class GameServiceImpl implements GameService {
             throw new BusinessException("评分必须在0-5之间");
         }
 
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
         UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
                 .orElseThrow(() -> new BusinessException("您还没有这款游戏"));
 
@@ -82,7 +79,21 @@ public class GameServiceImpl implements GameService {
         userGameRepository.save(userGame);
 
         // 更新游戏总评分
-        updateGameRating(userGame.getGame());
+        updateGameRating(game);
+
+        // 清除缓存
+        cacheService.evictCache("game:" + gameId);
+    }
+
+    @Override
+    @Transactional
+    public void updatePopularGames() {
+        List<Game> games = gameRepository.findAll();
+        for (Game game : games) {
+            int popularity = calculateGamePopularity(game);
+            game.setPopularity(popularity);
+        }
+        gameRepository.saveAll(games);
     }
 
     @Override
@@ -132,11 +143,11 @@ public class GameServiceImpl implements GameService {
         UserGame userGame = new UserGame();
         userGame.setGame(game);
         userGame.setUser(user);
+        userGame.setPurchasedAt(LocalDateTime.now());
         userGameRepository.save(userGame);
 
-        // 更新游戏人气
-        game.setPopularity(game.getPopularity() + 1);
-        gameRepository.save(game);
+        // 更新游戏人气值
+        updateGamePopularity(game);
     }
 
     @Override
@@ -145,13 +156,10 @@ public class GameServiceImpl implements GameService {
         UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
                 .orElseThrow(() -> new BusinessException("未拥有该游戏"));
 
-        // 更新游戏人气
-        Game game = userGame.getGame();
-        game.setPopularity(game.getPopularity() - 1);
-        gameRepository.save(game);
-
-        // 删除用户游戏关联
         userGameRepository.delete(userGame);
+
+        // 更新游戏人气值
+        updateGamePopularity(userGame.getGame());
     }
 
     private void updateGameRating(Game game) {
@@ -168,6 +176,22 @@ public class GameServiceImpl implements GameService {
                 .count());
 
         gameRepository.save(game);
+    }
+
+    private void updateGamePopularity(Game game) {
+        int popularity = calculateGamePopularity(game);
+        game.setPopularity(popularity);
+        gameRepository.save(game);
+    }
+
+    private int calculateGamePopularity(Game game) {
+        // 计算游戏人气值的逻辑
+        long userCount = userGameRepository.countByGameId(game.getId());
+        double avgRating = game.getRating();
+        long ratingCount = game.getRatingCount();
+
+        // 简单的人气计算公式：用户数 * (1 + 平均评分/5) * (1 + 评分数/100)
+        return (int) (userCount * (1 + avgRating/5) * (1 + ratingCount/100.0));
     }
 
     private GameDTO convertToDTO(Game game) {

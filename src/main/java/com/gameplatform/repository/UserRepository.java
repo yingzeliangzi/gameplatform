@@ -67,4 +67,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT COUNT(b) > 0 FROM User u JOIN u.blockedUsers b " +
             "WHERE u.id = :userId AND b.id = :targetUserId")
     boolean isUserBlocked(@Param("userId") Long userId, @Param("targetUserId") Long targetUserId);
+
+    long countDailyActiveUsers(LocalDateTime start, LocalDateTime end);
 }

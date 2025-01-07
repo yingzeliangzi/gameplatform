@@ -14,18 +14,12 @@ import java.util.List;
  */
 public interface GameService {
     GameDTO getGameById(Long id);
-
     Page<GameDTO> searchGames(GameSearchDTO searchDTO, Pageable pageable);
-
     List<String> getAllCategories();
-
     void rateGame(Long gameId, Long userId, Double rating);
-
     byte[] exportUserGames(Long userId);
-
     Page<GameDTO> getUserGames(Long userId, Pageable pageable);
-
     void addGameToUser(Long gameId, Long userId);
-
     void removeGameFromUser(Long gameId, Long userId);
+    void updatePopularGames(); // 添加这个方法声明
 }

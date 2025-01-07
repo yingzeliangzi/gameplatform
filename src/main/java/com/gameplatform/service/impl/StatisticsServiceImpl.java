@@ -1,9 +1,9 @@
 package com.gameplatform.service.impl;
 
 import com.gameplatform.model.dto.StatisticsDTO;
+import com.gameplatform.model.entity.*;
 import com.gameplatform.repository.*;
 import com.gameplatform.service.StatisticsService;
-import com.gameplatform.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -11,9 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author SakurazawaRyoko
@@ -31,25 +31,30 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final EventRepository eventRepository;
     private final EventRegistrationRepository eventRegistrationRepository;
     private final UserGameRepository userGameRepository;
+    private final DailyStatisticsRepository dailyStatisticsRepository;
 
     @Override
     @Cacheable(value = "statistics", key = "'overview'")
     public StatisticsDTO getOverviewStatistics() {
         StatisticsDTO statistics = new StatisticsDTO();
 
-        // 用户统计
+        // 设置用户统计
         statistics.setTotalUsers(userRepository.count());
         statistics.setActiveUsers(userRepository.countByStatus(User.UserStatus.ACTIVE));
 
-        // 游戏统计
+        // 设置游戏统计
         statistics.setTotalGames(gameRepository.count());
+        Long totalPlayTime = userGameRepository.sumPlayTimeByAll();
+        statistics.setTotalPlayTime(totalPlayTime != null ? totalPlayTime : 0L);
 
-        // 社区统计
+        // 设置社区统计
         statistics.setTotalPosts(postRepository.count());
+        statistics.setTotalComments(postRepository.countTotalComments());
 
-        // 活动统计
+        // 设置活动统计
         statistics.setTotalEvents(eventRepository.count());
         statistics.setOngoingEvents(eventRepository.countByStatus(Event.EventStatus.ONGOING));
+        statistics.setTotalRegistrations(eventRegistrationRepository.count());
 
         return statistics;
     }
@@ -59,12 +64,10 @@ public class StatisticsServiceImpl implements StatisticsService {
     public Map<String, Object> getAdminDashboardStatistics() {
         Map<String, Object> stats = new HashMap<>();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime lastWeek = now.minusWeeks(1);
+        LocalDateTime lastWeek = now.minus(7, ChronoUnit.DAYS);
 
-        // 新增用户统计
+        // 近期新增用户统计
         stats.put("newUsers", userRepository.countByCreatedAtBetween(lastWeek, now));
-
-        // 活跃用户统计
         stats.put("activeUsers", userRepository.countByLastLoginTimeAfter(lastWeek));
 
         // 热门游戏
@@ -75,6 +78,9 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         // 活动参与统计
         stats.put("eventParticipation", eventRegistrationRepository.countByRegisteredAtBetween(lastWeek, now));
+
+        // 最近30天的统计趋势
+        stats.put("trends", getTrendStatistics());
 
         return stats;
     }
@@ -103,83 +109,63 @@ public class StatisticsServiceImpl implements StatisticsService {
     public Map<String, Object> getGameStatistics(Long gameId) {
         Map<String, Object> stats = new HashMap<>();
 
-        // 拥有该游戏的用户数
+        // 基础统计
         stats.put("ownerCount", userGameRepository.countByGameId(gameId));
-
-        // 平均游戏时长
         stats.put("avgPlayTime", userGameRepository.avgPlayTimeByGameId(gameId));
-
-        // 相关帖子数
         stats.put("postCount", postRepository.countByGameId(gameId));
-
-        // 相关活动数
         stats.put("eventCount", eventRepository.countByGameId(gameId));
+
+        // 玩家数据分布
+        Map<String, Long> playTimeDistribution = userGameRepository.getPlayTimeDistribution(gameId);
+        stats.put("playTimeDistribution", playTimeDistribution);
+
+        // 评分分布
+        Map<Integer, Long> ratingDistribution = userGameRepository.getRatingDistribution(gameId);
+        stats.put("ratingDistribution", ratingDistribution);
 
         return stats;
     }
 
-    @Scheduled(cron = "0 0 0 * * *")  // 每天零点执行
-    @Transactional
-    public void generateDailyStatistics() {
-        DailyStatistics stats = new DailyStatistics();
-        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
-
-        // 新增用户
-        stats.setNewUsers(userRepository.countByCreatedAtBetween(
-                yesterday.withHour(0),
-                yesterday.withHour(23).withMinute(59)
-        ));
-
-        // 活跃用户
-        stats.setActiveUsers(userRepository.countByLastLoginTimeAfter(yesterday));
-
-        // 新增帖子
-        stats.setNewPosts(postRepository.countByCreatedAtBetween(
-                yesterday.withHour(0),
-                yesterday.withHour(23).withMinute(59)
-        ));
-
-        // 新增活动报名
-        stats.setNewRegistrations(eventRegistrationRepository.countByRegisteredAtBetween(
-                yesterday.withHour(0),
-                yesterday.withHour(23).withMinute(59)
-        ));
-
-        dailyStatisticsRepository.save(stats);
-    }
-
     @Override
-    @Cacheable(value = "statistics", key = "'trends'")
     public Map<String, List<Number>> getTrendStatistics() {
         Map<String, List<Number>> trends = new HashMap<>();
 
-        // 获取最近30天的统计数据
-        List<DailyStatistics> dailyStats = dailyStatisticsRepository
-                .findTop30ByOrderByDateDesc();
+        List<DailyStatistics> dailyStats = dailyStatisticsRepository.findTop30ByOrderByDateDesc();
 
-        // 处理统计数据为趋势数据
-        trends.put("newUsers", dailyStats.stream()
-                .map(DailyStatistics::getNewUsers)
-                .collect(Collectors.toList()));
-
-        trends.put("activeUsers", dailyStats.stream()
-                .map(DailyStatistics::getActiveUsers)
-                .collect(Collectors.toList()));
-
-        trends.put("newPosts", dailyStats.stream()
-                .map(DailyStatistics::getNewPosts)
-                .collect(Collectors.toList()));
-
-        trends.put("newRegistrations", dailyStats.stream()
-                .map(DailyStatistics::getNewRegistrations)
-                .collect(Collectors.toList()));
+        // 处理统计数据
+        trends.put("newUsers", extractTrendData(dailyStats, DailyStatistics::getNewUsers));
+        trends.put("activeUsers", extractTrendData(dailyStats, DailyStatistics::getActiveUsers));
+        trends.put("newPosts", extractTrendData(dailyStats, DailyStatistics::getNewPosts));
+        trends.put("newRegistrations", extractTrendData(dailyStats, DailyStatistics::getNewRegistrations));
 
         return trends;
     }
 
-    private StatisticsDTO buildStatisticsDTO(List<Object[]> results) {
-        StatisticsDTO dto = new StatisticsDTO();
-        // 处理统计结果...
-        return dto;
+    @Scheduled(cron = "0 0 0 * * ?") // 每天凌晨执行
+    @Transactional
+    public void generateDailyStatistics() {
+        LocalDateTime yesterday = LocalDateTime.now().minus(1, ChronoUnit.DAYS);
+        LocalDateTime startOfDay = yesterday.truncatedTo(ChronoUnit.DAYS);
+        LocalDateTime endOfDay = startOfDay.plus(1, ChronoUnit.DAYS);
+
+        DailyStatistics stats = new DailyStatistics();
+        stats.setDate(startOfDay);
+
+        // 收集统计数据
+        stats.setNewUsers(userRepository.countByCreatedAtBetween(startOfDay, endOfDay));
+        stats.setActiveUsers(userRepository.countByLastLoginTimeAfter(startOfDay));
+        stats.setNewPosts(postRepository.countByCreatedAtBetween(startOfDay, endOfDay));
+        stats.setNewRegistrations(eventRegistrationRepository.countByRegisteredAtBetween(startOfDay, endOfDay));
+        stats.setTotalGameTime(userGameRepository.sumPlayTimeInTimeRange(startOfDay, endOfDay));
+        stats.setDailyActiveUsers(userRepository.countDailyActiveUsers(startOfDay, endOfDay));
+
+        dailyStatisticsRepository.save(stats);
+    }
+
+    private <T extends Number> List<T> extractTrendData(List<DailyStatistics> stats,
+                                                        java.util.function.Function<DailyStatistics, T> extractor) {
+        return stats.stream()
+                .map(extractor)
+                .collect(Collectors.toList());
     }
 }

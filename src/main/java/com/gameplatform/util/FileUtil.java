@@ -1,15 +1,21 @@
 package com.gameplatform.util;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.Arrays;
+import java.util.List;
 
 
 /**
@@ -29,7 +35,15 @@ public class FileUtil {
     private long maxSize;
 
     @Value("${upload.allowed-types}")
-    private String[] allowedTypes;
+    private List<String> allowedTypes;
+
+    public boolean isValidFileType(String contentType) {
+        return allowedTypes.contains(contentType);
+    }
+
+    public boolean isValidFileType(MultipartFile file) {
+        return file != null && isValidFileType(file.getContentType());
+    }
 
     public Resource loadFileAsResource(String fileName) throws IOException {
         try {

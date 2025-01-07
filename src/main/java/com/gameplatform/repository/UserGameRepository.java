@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -49,4 +51,9 @@ public interface UserGameRepository extends JpaRepository<UserGame, Long> {
             "AND ug.userRating IS NOT NULL " +
             "ORDER BY ug.userRating DESC")
     Page<UserGame> findHighestRatedGames(@Param("userId") Long userId, Pageable pageable);
+
+    Long sumPlayTimeByAll();
+    Long sumPlayTimeInTimeRange(LocalDateTime start, LocalDateTime end);
+    Map<String, Long> getPlayTimeDistribution(Long gameId);
+    Map<Integer, Long> getRatingDistribution(Long gameId);
 }

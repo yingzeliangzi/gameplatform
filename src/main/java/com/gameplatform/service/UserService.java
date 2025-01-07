@@ -18,7 +18,7 @@ import java.util.Set;
  * @description TODO
  */
 public interface UserService {
-    UserDTO register(UserDTO userDTO);
+    UserDTO register(RegisterRequestDTO registerRequest);
     void logout(String token);
     UserDTO updateUser(Long userId, UserDTO userDTO);
     void updatePassword(Long userId, String oldPassword, String newPassword);
@@ -38,14 +38,10 @@ public interface UserService {
     boolean validateToken(String token);
     void blockUser(Long userId, Long targetUserId);
     void unblockUser(Long userId, Long targetUserId);
-    Page<UserDTO> getBlockedUsers(Long userId, Pageable pageable);
-    boolean isUserBlocked(Long userId, Long targetUserId);
     LoginResponseDTO login(String username, String password);
-    UserDTO register(RegisterRequestDTO registerRequest);
     void deleteUser(Long userId);
     UserDTO getCurrentUser(String token);
-    void enableTwoFactor(Long userId);
-    void disableTwoFactor(Long userId);
     void sendVerificationCode(String email);
     void resetPassword(String email);
+    boolean isUserBlocked(Long userId, Long targetUserId);
 }
