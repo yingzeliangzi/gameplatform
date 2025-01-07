@@ -1,9 +1,11 @@
 package com.gameplatform.model.entity;
+
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,7 +38,7 @@ public class Comment {
     private Comment parentComment;
 
     @OneToMany(mappedBy = "parentComment")
-    private List<Comment> replies;
+    private List<Comment> replies = new ArrayList<>();
 
     @Column(nullable = false)
     private Integer likeCount = 0;

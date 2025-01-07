@@ -1,34 +1,34 @@
+import Cookies from 'js-cookie'
+
 const TokenKey = 'game_platform_token'
-const UserRoleKey = 'game_platform_user_role'
+const UserInfoKey = 'game_platform_user'
 
 export function getToken() {
-    return localStorage.getItem(TokenKey)
+    return Cookies.get(TokenKey)
 }
 
 export function setToken(token) {
-    return localStorage.setItem(TokenKey, token)
+    return Cookies.set(TokenKey, token)
 }
 
 export function removeToken() {
-    return localStorage.removeItem(TokenKey)
+    return Cookies.remove(TokenKey)
 }
 
-export function setUserRole(role) {
-    return localStorage.setItem(UserRoleKey, role)
+export function getUserInfo() {
+    const userInfo = Cookies.get(UserInfoKey)
+    return userInfo ? JSON.parse(userInfo) : null
 }
 
-export function getUserRole() {
-    return localStorage.getItem(UserRoleKey)
+export function setUserInfo(userInfo) {
+    return Cookies.set(UserInfoKey, JSON.stringify(userInfo))
 }
 
-export function removeUserRole() {
-    return localStorage.removeItem(UserRoleKey)
+export function removeUserInfo() {
+    return Cookies.remove(UserInfoKey)
 }
 
-// 检查用户是否有权限访问某个路由
-export function hasPermission(route, roles) {
-    if (route.meta && route.meta.roles) {
-        return roles.some(role => route.meta.roles.includes(role))
-    }
-    return true
+export function clearAuth() {
+    removeToken()
+    removeUserInfo()
 }

@@ -36,11 +36,24 @@ spring:
           starttls:
             enable: true         # 启用STARTTLS加密
 
+  activemq:
+    broker-url: tcp://localhost:61616
+    user: admin
+    password: admin
+
   redis:
     host: localhost
     port: 6379
     database: 0
     timeout: 60000
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+      cache-null-values: true
+      use-key-prefix: true
+      key-prefix: "game:"
 
 jwt:
   secret: 1145141919810
@@ -49,11 +62,30 @@ jwt:
   # 文件上传路径配置
 upload:
   path: ./uploads
-  max-size: 10485760  # 10MB
+  max-size: 2097152  # 2MB
   allowed-types:
     - image/jpeg
     - image/png
     - image/gif
+    - application/pdf
+    - application/msword
+    - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+notification:
+  queue: notification.queue
+  email-types:
+    - SYSTEM
+    - EVENT_REMINDER
+    - GAME_DISCOUNT
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
 
 logging:
   level:

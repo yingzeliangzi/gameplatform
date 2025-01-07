@@ -1,12 +1,13 @@
 package com.gameplatform.service;
 
-import com.gameplatform.model.entity.*;
-import com.gameplatform.repository.NotificationRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.gameplatform.model.dto.NotificationDTO;
+import com.gameplatform.model.dto.UnreadCountDTO;
+import com.gameplatform.model.entity.Notification;
+import com.gameplatform.model.entity.Post;
+import com.gameplatform.model.entity.User;
+import com.gameplatform.model.entity.Comment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * @author SakurazawaRyoko
@@ -14,48 +15,29 @@ import org.springframework.transaction.annotation.Transactional;
  * @date 2024/12/28 19:43
  * @description TODO
  */
-@Service
-@RequiredArgsConstructor
-public class NotificationService {
-    private final NotificationRepository notificationRepository;
+public interface NotificationService {
+    void sendNotification(Long userId, NotificationDTO notificationDTO);
 
-    @Async
-    @Transactional
-    public void sendEventNotification(User user, Event event, String message) {
-        Notification notification = Notification.createEventReminderNotification(
-                event.getTitle(),
-                message,
-                user,
-                event
-        );
-        notificationRepository.save(notification);
-    }
+    Page<NotificationDTO> getUserNotifications(Long userId, Pageable pageable);
 
-    @Async
-    @Transactional
-    public void sendRegistrationConfirmation(EventRegistration registration) {
-        Notification notification = Notification.createEventReminderNotification(
-                "报名确认",
-                String.format("您已成功报名活动：%s", registration.getEvent().getTitle()),
-                registration.getUser(),
-                registration.getEvent()
-        );
-        notificationRepository.save(notification);
-    }
+    Page<NotificationDTO> getNotificationsByType(Long userId, Notification.NotificationType type, Pageable pageable);
 
-    @Async
-    @Transactional
-    public void sendEventReminder(EventRegistration registration) {
-        String message = String.format(
-                "您报名的活动 %s 将在24小时内开始",
-                registration.getEvent().getTitle()
-        );
-        Notification notification = Notification.createEventReminderNotification(
-                "活动提醒",
-                message,
-                registration.getUser(),
-                registration.getEvent()
-        );
-        notificationRepository.save(notification);
-    }
+    void markAsRead(Long notificationId, Long userId);
+
+    void markAllAsRead(Long userId);
+
+    void deleteNotification(Long notificationId, Long userId);
+
+    UnreadCountDTO getUnreadCount(Long userId);
+
+    // 添加评论相关通知方法
+    void sendCommentNotification(User user, Post post, User commenter);
+
+    void sendReplyNotification(User user, Comment parentComment, User replier);
+
+    void sendCommentReplyNotification(User user, Post post, String commenterName);
+
+    void sendNewCommentNotification(User user, Post post, String commenterName);
+
+    void sendNewPostNotification(User follower, Post post);
 }

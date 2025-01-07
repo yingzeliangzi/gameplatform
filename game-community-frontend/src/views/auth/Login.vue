@@ -2,14 +2,14 @@
   <div class="login-container">
     <el-card class="login-card">
       <template #header>
-        <h2 class="login-title">游戏社区登录</h2>
+        <h2 class="text-center">登录</h2>
       </template>
+
       <el-form
-          ref="loginForm"
+          ref="loginFormRef"
           :model="loginForm"
           :rules="loginRules"
-          label-width="80px"
-          class="login-form"
+          label-position="top"
       >
         <el-form-item label="用户名" prop="username">
           <el-input
@@ -26,121 +26,97 @@
               placeholder="请输入密码"
               prefix-icon="Lock"
               show-password
+              @keyup.enter="handleLogin"
           />
         </el-form-item>
 
         <el-form-item>
           <el-button
               type="primary"
+              class="w-full"
               :loading="loading"
-              class="login-button"
               @click="handleLogin"
           >
             登录
           </el-button>
         </el-form-item>
-
-        <div class="login-options">
-          <el-link type="primary" @click="$router.push('/register')">
-            注册账号
-          </el-link>
-          <el-link type="primary">忘记密码？</el-link>
-        </div>
       </el-form>
+
+      <div class="flex justify-between mt-4">
+        <router-link to="/register" class="text-blue-500">
+          注册账号
+        </router-link>
+        <router-link to="/reset-password" class="text-blue-500">
+          忘记密码？
+        </router-link>
+      </div>
     </el-card>
   </div>
 </template>
 
-<script>
-import { defineComponent, reactive, ref } from 'vue'
+<script setup>
+import { ref, reactive } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useStore } from 'vuex'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
 
-export default defineComponent({
-  name: 'Login',
-  setup() {
-    const store = useStore()
-    const router = useRouter()
-    const loginForm = reactive({
-      username: '',
-      password: ''
-    })
+const router = useRouter()
+const route = useRoute()
+const store = useStore()
 
-    const loginRules = {
-      username: [
-        { required: true, message: '请输入用户名', trigger: 'blur' },
-        { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
-      ],
-      password: [
-        { required: true, message: '请输入密码', trigger: 'blur' },
-        { min: 6, max: 20, message: '长度在 6 到 20 个字符', trigger: 'blur' }
-      ]
-    }
+const loginFormRef = ref(null)
+const loading = ref(false)
 
-    const loading = ref(false)
-
-    const handleLogin = () => {
-      loginForm.value?.validate((valid) => {
-        if (valid) {
-          loading.value = true
-          store.dispatch('auth/login', loginForm)
-              .then(() => {
-                ElMessage.success('登录成功')
-                const redirect = route.query.redirect || '/'
-                router.push(redirect)
-              })
-              .catch(() => {
-                ElMessage.error('登录失败，请检查用户名和密码')
-              })
-              .finally(() => {
-                loading.value = false
-              })
-        }
-      })
-    }
-
-    return {
-      loginForm,
-      loginRules,
-      loading,
-      handleLogin
-    }
-  }
+const loginForm = reactive({
+  username: '',
+  password: ''
 })
+
+const loginRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码不能少于 6 个字符', trigger: 'blur' }
+  ]
+}
+
+const handleLogin = async () => {
+  if (!loginFormRef.value) return
+
+  try {
+    await loginFormRef.value.validate()
+    loading.value = true
+
+    await store.dispatch('auth/login', loginForm)
+    ElMessage.success('登录成功')
+
+    const redirect = route.query.redirect || '/'
+    router.replace(redirect)
+  } catch (error) {
+    console.error('登录失败:', error)
+    ElMessage.error(error?.message || '登录失败')
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  height: 100vh;
   background-color: #f5f7fa;
 }
 
 .login-card {
-  width: 400px;
-}
-
-.login-title {
-  text-align: center;
-  margin: 0;
-  font-size: 24px;
-  color: #303133;
-}
-
-.login-form {
-  margin-top: 20px;
-}
-
-.login-button {
   width: 100%;
-}
-
-.login-options {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 15px;
+  max-width: 400px;
+  margin: 20px;
 }
 </style>

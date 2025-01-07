@@ -1,27 +1,30 @@
+package com.gameplatform.service.impl;
 
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.dto.EventDTO;
+import com.gameplatform.model.dto.EventListItemDTO;
 import com.gameplatform.model.dto.EventRegistrationDTO;
+import com.gameplatform.model.dto.NotificationDTO;
 import com.gameplatform.model.entity.*;
 import com.gameplatform.repository.EventRepository;
 import com.gameplatform.repository.EventRegistrationRepository;
 import com.gameplatform.repository.UserRepository;
 import com.gameplatform.repository.GameRepository;
 import com.gameplatform.service.EventService;
+import com.gameplatform.service.NotificationService;
 import com.gameplatform.util.FileUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
 
 /**
  * @author SakurazawaRyoko
@@ -39,6 +42,120 @@ public class EventServiceImpl implements EventService {
     private final GameRepository gameRepository;
     private final NotificationService notificationService;
     private final FileUtil fileUtil;
+
+    @Override
+    @Transactional
+    public void sendEventReminders(Event event) {
+        // 获取所有报名用户
+        List<EventRegistration> registrations = registrationRepository
+                .findByEventIdAndStatus(event.getId(), EventRegistration.RegistrationStatus.REGISTERED);
+
+        // 给每个用户发送提醒
+        for (EventRegistration registration : registrations) {
+            NotificationDTO notification = new NotificationDTO();
+            notification.setTitle("活动即将开始");
+            notification.setContent("您报名的活动「" + event.getTitle() + "」将在一小时后开始");
+            notification.setType(Notification.NotificationType.EVENT_REMINDER);
+            notificationService.sendNotification(registration.getUser().getId(), notification);
+        }
+    }
+
+    private void notifyNewEvent(Event event) {
+        if (event.getGame() != null) {
+            List<User> interestedUsers = userRepository.findByOwnedGamesContaining(event.getGame());
+            for (User user : interestedUsers) {
+                NotificationDTO notification = new NotificationDTO();
+                notification.setTitle("新活动发布");
+                notification.setContent("您关注的游戏「" + event.getGame().getTitle() + "」发布了新活动：" + event.getTitle());
+                notification.setType(Notification.NotificationType.EVENT_REMINDER);
+                notificationService.sendNotification(user.getId(), notification);
+            }
+        }
+    }
+
+    private void notifyEventUpdate(Event event) {
+        List<EventRegistration> registrations = registrationRepository
+                .findByEventIdAndStatus(event.getId(), EventRegistration.RegistrationStatus.REGISTERED);
+
+        for (EventRegistration registration : registrations) {
+            NotificationDTO notification = new NotificationDTO();
+            notification.setTitle("活动信息更新");
+            notification.setContent("您报名的活动「" + event.getTitle() + "」信息有更新");
+            notification.setType(Notification.NotificationType.EVENT_REMINDER);
+            notificationService.sendNotification(registration.getUser().getId(), notification);
+        }
+    }
+
+    private void notifyEventCancellation(Event event) {
+        List<EventRegistration> registrations = registrationRepository
+                .findByEventIdAndStatus(event.getId(), EventRegistration.RegistrationStatus.REGISTERED);
+
+        for (EventRegistration registration : registrations) {
+            registration.setStatus(EventRegistration.RegistrationStatus.CANCELLED);
+            registrationRepository.save(registration);
+
+            NotificationDTO notification = new NotificationDTO();
+            notification.setTitle("活动已取消");
+            notification.setContent("您报名的活动「" + event.getTitle() + "」已被取消");
+            notification.setType(Notification.NotificationType.EVENT_REMINDER);
+            notificationService.sendNotification(registration.getUser().getId(), notification);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventListItemDTO> searchEvents(String keyword, Event.EventType type, Long userId, Pageable pageable) {
+        Page<Event> events;
+        if (type != null) {
+            events = eventRepository.findByType(type, pageable);
+        } else if (keyword != null && !keyword.isEmpty()) {
+            events = eventRepository.findByTitleContainingIgnoreCase(keyword, pageable);
+        } else {
+            events = eventRepository.findAll(pageable);
+        }
+
+        List<EventListItemDTO> dtos = events.getContent().stream()
+                .map(event -> convertToListItemDTO(event, userId))
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, events.getTotalElements());
+    }
+
+    private EventListItemDTO convertToListItemDTO(Event event, Long userId) {
+        EventListItemDTO dto = new EventListItemDTO();
+        BeanUtils.copyProperties(event, dto);
+
+        if (userId != null) {
+            dto.setRegistered(registrationRepository.existsByEventIdAndUserIdAndStatus(
+                    event.getId(),
+                    userId,
+                    EventRegistration.RegistrationStatus.REGISTERED
+            ));
+        }
+
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> getEventsStartingBetween(LocalDateTime start, LocalDateTime end) {
+        return eventRepository.findByStartTimeBetween(start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> findPendingEvents() {
+        return eventRepository.findByStatus(Event.EventStatus.UPCOMING);
+    }
+
+    @Override
+    @Transactional
+    public Event updateEventDetails(Long eventId, Event eventDetails) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+        BeanUtils.copyProperties(eventDetails, event, "id", "coverImage", "images", "registrations");
+        return eventRepository.save(event);
+    }
 
     @Override
     @Transactional
@@ -236,38 +353,18 @@ public class EventServiceImpl implements EventService {
         });
     }
 
-    private void notifyNewEvent(Event event) {
-        if (event.getGame() != null) {
-            // 通知关注该游戏的用户
-            List<User> interestedUsers = userRepository.findByOwnedGamesContaining(event.getGame());
-            interestedUsers.forEach(user ->
-                    notificationService.sendEventNotification(user, event, "新活动通知"));
-        }
-    }
-
-    private void notifyEventUpdate(Event event) {
-        event.getRegistrations().stream()
-                .filter(reg -> reg.getStatus() == EventRegistration.RegistrationStatus.REGISTERED)
-                .forEach(reg ->
-                        notificationService.sendEventNotification(
-                                reg.getUser(),
-                                event,
-                                "活动信息更新通知"
-                        ));
-    }
-
-    private void notifyEventCancellation(Event event) {
-        event.getRegistrations().stream()
-                .filter(reg -> reg.getStatus() == EventRegistration.RegistrationStatus.REGISTERED)
-                .forEach(reg -> {
-                    reg.setStatus(EventRegistration.RegistrationStatus.CANCELLED);
-                    registrationRepository.save(reg);
-                    notificationService.sendEventNotification(
-                            reg.getUser(),
-                            event,
-                            "活动取消通知"
-                    );
-                });
+    public EventServiceImpl(EventRepository eventRepository,
+                            EventRegistrationRepository registrationRepository,
+                            UserRepository userRepository,
+                            GameRepository gameRepository,
+                            NotificationService notificationService,
+                            FileUtil fileUtil) {
+        this.eventRepository = eventRepository;
+        this.registrationRepository = registrationRepository;
+        this.userRepository = userRepository;
+        this.gameRepository = gameRepository;
+        this.notificationService = notificationService;
+        this.fileUtil = fileUtil;
     }
 
     private EventDTO convertToDTO(Event event) {
@@ -292,24 +389,50 @@ public class EventServiceImpl implements EventService {
         return dto;
     }
 
-    private EventListItemDTO convertToListItemDTO(Event event, Long userId) {
-        EventListItemDTO dto = new EventListItemDTO();
-        BeanUtils.copyProperties(event, dto);
-
-        if (userId != null) {
-            dto.setRegistered(registrationRepository.existsByEventIdAndUserIdAndStatus(
-                    event.getId(),
-                    userId,
-                    EventRegistration.RegistrationStatus.REGISTERED
-            ));
-        }
-
-        return dto;
-    }
-
     private EventRegistrationDTO convertToRegistrationDTO(EventRegistration registration) {
         EventRegistrationDTO dto = new EventRegistrationDTO();
         BeanUtils.copyProperties(registration, dto);
         return dto;
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> findByEndTimeBetween(LocalDateTime start, LocalDateTime end) {
+        return eventRepository.findByEndTimeBetween(start, end);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> findByStatus(Event.EventStatus status) {
+        return eventRepository.findByStatus(status);
+    }
+
+    @Override
+    @Transactional
+    public void updateEventStatus(Long eventId, Event.EventStatus status) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+        event.setStatus(status);
+        eventRepository.save(event);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean checkEventCapacity(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+        return event.getMaxParticipants() == null ||
+                event.getCurrentParticipants() < event.getMaxParticipants();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventRegistration> getEventParticipants(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+        return event.getRegistrations().stream()
+                .filter(r -> r.getStatus() == EventRegistration.RegistrationStatus.REGISTERED)
+                .collect(Collectors.toList());
+    }
 }
+

@@ -1,35 +1,24 @@
 import request from '@/utils/request'
 
-// 获取用户信息
-export function getUserInfo(userId) {
+/**
+ * 更新用户资料
+ * @param {Object} data - 用户资料
+ */
+export function updateProfile(data) {
     return request({
-        url: `/api/users/${userId}`,
-        method: 'get'
-    })
-}
-
-// 更新用户信息
-export function updateUserInfo(data) {
-    return request({
-        url: '/api/users/profile',
+        url: '/users/profile',
         method: 'put',
         data
     })
 }
 
-// 更新密码
-export function updatePassword(data) {
-    return request({
-        url: '/api/users/password',
-        method: 'put',
-        data
-    })
-}
-
-// 上传头像
+/**
+ * 上传头像
+ * @param {FormData} data - 包含头像文件的FormData
+ */
 export function uploadAvatar(data) {
     return request({
-        url: '/api/users/avatar',
+        url: '/users/avatar',
         method: 'post',
         headers: {
             'Content-Type': 'multipart/form-data'
@@ -38,155 +27,94 @@ export function uploadAvatar(data) {
     })
 }
 
-// 获取用户游戏库统计
-export function getUserGameStats() {
+/**
+ * 获取用户资料
+ * @param {string} userId - 用户ID
+ */
+export function getUserProfile(userId) {
     return request({
-        url: '/api/users/game-stats',
+        url: `/users/${userId}/profile`,
         method: 'get'
     })
 }
 
-// 获取用户帖子统计
-export function getUserPostStats() {
-    return request({
-        url: '/api/users/post-stats',
-        method: 'get'
-    })
-}
-
-// 实名认证
-export function submitVerification(data) {
-    return request({
-        url: '/api/users/verify',
-        method: 'post',
-        data
-    })
-}
-
-// 获取实名认证状态
-export function getVerificationStatus() {
-    return request({
-        url: '/api/users/verify/status',
-        method: 'get'
-    })
-}
-
-// 获取用户安全设置
-export function getSecuritySettings() {
-    return request({
-        url: '/api/users/security',
-        method: 'get'
-    })
-}
-
-// 更新安全设置
-export function updateSecuritySettings(data) {
-    return request({
-        url: '/api/users/security',
-        method: 'put',
-        data
-    })
-}
-
-// 获取用户隐私设置
-export function getPrivacySettings() {
-    return request({
-        url: '/api/users/privacy',
-        method: 'get'
-    })
-}
-
-// 更新隐私设置
-export function updatePrivacySettings(data) {
-    return request({
-        url: '/api/users/privacy',
-        method: 'put',
-        data
-    })
-}
-
-// 绑定手机号
-export function bindPhone(data) {
-    return request({
-        url: '/api/users/bind/phone',
-        method: 'post',
-        data
-    })
-}
-
-// 绑定邮箱
-export function bindEmail(data) {
-    return request({
-        url: '/api/users/bind/email',
-        method: 'post',
-        data
-    })
-}
-
-// 获取用户粉丝列表
-export function getUserFollowers(userId, params) {
-    return request({
-        url: `/api/users/${userId}/followers`,
-        method: 'get',
-        params
-    })
-}
-
-// 获取用户关注列表
-export function getUserFollowing(userId, params) {
-    return request({
-        url: `/api/users/${userId}/following`,
-        method: 'get',
-        params
-    })
-}
-
-// 关注用户
+/**
+ * 关注用户
+ * @param {string} userId - 要关注的用户ID
+ */
 export function followUser(userId) {
     return request({
-        url: `/api/users/${userId}/follow`,
+        url: `/users/${userId}/follow`,
         method: 'post'
     })
 }
 
-// 取消关注
+/**
+ * 取消关注
+ * @param {string} userId - 要取消关注的用户ID
+ */
 export function unfollowUser(userId) {
     return request({
-        url: `/api/users/${userId}/follow`,
+        url: `/users/${userId}/follow`,
         method: 'delete'
     })
 }
 
-// 获取用户登录历史
-export function getLoginHistory(params) {
+/**
+ * 获取关注者列表
+ * @param {string} userId - 用户ID
+ * @param {Object} params - 查询参数
+ */
+export function getFollowers(userId, params) {
     return request({
-        url: '/api/users/login-history',
+        url: `/users/${userId}/followers`,
         method: 'get',
         params
     })
 }
 
-// 获取用户设备列表
-export function getDevices() {
+/**
+ * 获取关注列表
+ * @param {string} userId - 用户ID
+ * @param {Object} params - 查询参数
+ */
+export function getFollowing(userId, params) {
     return request({
-        url: '/api/users/devices',
+        url: `/users/${userId}/following`,
+        method: 'get',
+        params
+    })
+}
+
+/**
+ * 获取用户统计信息
+ * @param {string} userId - 用户ID
+ */
+export function getUserStats(userId) {
+    return request({
+        url: `/users/${userId}/stats`,
         method: 'get'
     })
 }
 
-// 删除设备
-export function removeDevice(deviceId) {
+/**
+ * 更新用户设置
+ * @param {Object} data - 设置信息
+ */
+export function updateSettings(data) {
     return request({
-        url: `/api/users/devices/${deviceId}`,
-        method: 'delete'
+        url: '/users/settings',
+        method: 'put',
+        data
     })
 }
 
-// 发送验证码
-export function sendVerificationCode(phone) {
+/**
+ * 获取用户设置
+ */
+export function getSettings() {
     return request({
-        url: '/api/users/verify-code',
-        method: 'post',
-        data: { phone }
+        url: '/users/settings',
+        method: 'get'
     })
 }

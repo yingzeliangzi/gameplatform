@@ -17,11 +17,16 @@ import java.util.List;
  * @description TODO
  */
 public interface EventRepository extends JpaRepository<Event, Long> {
-    Page<Event> findByGameId(Long gameId, Pageable pageable);
     Page<Event> findByType(Event.EventType type, Pageable pageable);
     @Query("SELECT e FROM Event e WHERE e.startTime >= :now AND e.status = :status")
     Page<Event> findUpcomingEvents(@Param("now") LocalDateTime now, @Param("status") Event.EventStatus status, Pageable pageable);
     @Query("SELECT e FROM Event e WHERE e.startTime <= :now AND e.endTime >= :now AND e.status = :status")
     Page<Event> findOngoingEvents(@Param("now") LocalDateTime now, @Param("status") Event.EventStatus status, Pageable pageable);
     List<Event> findByStartTimeBetween(LocalDateTime start, LocalDateTime end);
+    List<Event> findByEndTimeBetween(LocalDateTime start, LocalDateTime end);
+    List<Event> findByStatus(Event.EventStatus status);
+    long countByStatus(Event.EventStatus status);
+    long countByGameId(Long gameId);
+    @Query("SELECT e FROM Event e WHERE e.game.id = :gameId")
+    Page<Event> findByGameId(@Param("gameId") Long gameId, Pageable pageable);
 }

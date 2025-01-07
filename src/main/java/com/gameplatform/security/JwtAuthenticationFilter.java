@@ -1,13 +1,17 @@
 package com.gameplatform.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gameplatform.common.Result;
+import com.gameplatform.model.dto.UserDTO;
 import com.gameplatform.service.UserService;
 import com.gameplatform.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.servlet.FilterChain;
@@ -15,8 +19,6 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -31,46 +33,54 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserService userService;
+    private final ObjectMapper objectMapper;
 
     @Override
-    protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
         try {
             String jwt = extractJwtFromRequest(request);
-            if (jwt != null) {
+            if (StringUtils.hasText(jwt) && jwtUtil.validateToken(jwt)) {
                 String username = jwtUtil.getUsernameFromToken(jwt);
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    var userDetails = userService.loadUserByUsername(username);
-                    if (jwtUtil.validateToken(jwt, username)) {
-                        Set<SimpleGrantedAuthority> authorities = userDetails.getRoles().stream()
-                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                                .collect(Collectors.toSet());
+                UserDTO userDetails = userService.loadUserByUsername(username);
 
-                        var authentication = new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                authorities
-                        );
-                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                    }
+                if (userDetails != null) {
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getRoles().stream()
+                                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                                    .collect(Collectors.toList())
+                    );
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }
+            filterChain.doFilter(request, response);
         } catch (Exception e) {
-            logger.error("Cannot set user authentication", e);
-        }
+            SecurityContextHolder.clearContext();
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
-        filterChain.doFilter(request, response);
+            Result<?> errorResponse = Result.error(401, "Token无效或已过期");
+            response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+        }
     }
 
     private String extractJwtFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
         return null;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/api/auth/login") ||
+                path.startsWith("/api/auth/register") ||
+                path.startsWith("/api/auth/verification-code") ||
+                path.startsWith("/api/auth/reset-password");
     }
 }

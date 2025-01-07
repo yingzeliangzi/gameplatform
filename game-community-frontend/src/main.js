@@ -6,7 +6,8 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import './assets/styles/index.scss'
-import './permission'
+import './permission'  // 路由权限控制
+import { initWebSocket } from '@/utils/websocket'
 
 const app = createApp(App)
 
@@ -27,5 +28,9 @@ app.use(store)
         size: 'default',
         zIndex: 3000
     })
+    .mount('#app')
 
-app.mount('#app')
+// 初始化 WebSocket 连接
+if (store.getters['auth/isAuthenticated']) {
+    initWebSocket()
+}

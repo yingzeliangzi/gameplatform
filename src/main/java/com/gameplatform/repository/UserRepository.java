@@ -57,4 +57,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "ORDER BY (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) DESC " +
             "LIMIT :limit", nativeQuery = true)
     List<User> findTopContributors(@Param("limit") int limit);
+
+    List<User> findByStatus(User.UserStatus status);
+
+    @Query("SELECT u FROM User u WHERE u.id IN " +
+            "(SELECT b.id FROM User current JOIN current.blockedUsers b WHERE current.id = :userId)")
+    Page<User> findBlockedUsers(@Param("userId") Long userId, Pageable pageable);
+
+    @Query("SELECT COUNT(b) > 0 FROM User u JOIN u.blockedUsers b " +
+            "WHERE u.id = :userId AND b.id = :targetUserId")
+    boolean isUserBlocked(@Param("userId") Long userId, @Param("targetUserId") Long targetUserId);
 }

@@ -130,4 +130,18 @@ public class User {
         user.getFollowers().remove(this);
         this.following.remove(user);
     }
+
+    @ManyToMany
+    @JoinTable(
+            name = "user_blocks",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "blocked_user_id")
+    )
+    private Set<User> blockedUsers = new HashSet<>();
+
+    @Column(nullable = false)
+    private boolean twoFactorEnabled = false;
+
+    @Column(length = 32)
+    private String twoFactorSecret;
 }

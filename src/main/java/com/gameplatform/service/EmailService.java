@@ -8,9 +8,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import javax.mail.internet.MimeMessage;
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-
 
 /**
  * @author SakurazawaRyoko
@@ -22,55 +19,45 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class EmailService {
     private final JavaMailSender mailSender;
-    private final ConcurrentHashMap<String, String> verificationCodes = new ConcurrentHashMap<>();
 
     @Async
-    public void sendSimpleEmail(String to, String subject, String text) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(text);
-        mailSender.send(message);
+    public void sendWelcomeEmail(String to, String username) {
+        String content = String.format("""
+            <div style="padding: 20px;">
+                <h2>欢迎加入游戏社区！</h2>
+                <p>亲爱的 %s：</p>
+                <p>感谢您注册成为我们的会员。我们期待与您一起分享游戏的乐趣！</p>
+                <p>如有任何问题，请随时联系我们的客服团队。</p>
+            </div>
+            """, username);
+
+        sendHtmlEmail(to, "欢迎加入游戏社区", content);
     }
 
     @Async
-    public void sendHtmlEmail(String to, String subject, String htmlContent) {
+    public void sendPasswordChangeNotification(String to) {
+        String content = """
+            <div style="padding: 20px;">
+                <h2>密码修改通知</h2>
+                <p>您的账号密码已成功修改。</p>
+                <p>如果这不是您本人的操作，请立即联系我们。</p>
+            </div>
+            """;
+
+        sendHtmlEmail(to, "密码修改通知", content);
+    }
+
+    @Async
+    public void sendHtmlEmail(String to, String subject, String content) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(htmlContent, true);
+            helper.setText(content, true);
             mailSender.send(message);
         } catch (Exception e) {
             throw new RuntimeException("发送邮件失败", e);
         }
-    }
-
-    public void sendVerificationCode(String email) {
-        String code = generateVerificationCode();
-        verificationCodes.put(email, code);
-        sendSimpleEmail(email, "验证码", "您的验证码是：" + code);
-    }
-
-    public void sendPasswordResetEmail(String email, String newPassword) {
-        String content = String.format("""
-            <div style="padding: 20px;">
-                <h2>密码重置</h2>
-                <p>您的新密码是：<strong>%s</strong></p>
-                <p>请登录后立即修改密码。</p>
-            </div>
-            """, newPassword);
-        sendHtmlEmail(email, "密码重置", content);
-    }
-
-    public boolean verifyCode(String email, String code) {
-        String storedCode = verificationCodes.get(email);
-        return storedCode != null && storedCode.equals(code);
-    }
-
-    private String generateVerificationCode() {
-        Random random = new Random();
-        return String.format("%06d", random.nextInt(1000000));
     }
 }

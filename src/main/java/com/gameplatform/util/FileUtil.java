@@ -18,8 +18,8 @@ import java.util.UUID;
  * @date 2024/12/28 15:12
  * @description TODO
  */
-@Slf4j
 @Component
+@Slf4j
 public class FileUtil {
 
     @Value("${upload.path}")
@@ -30,6 +30,21 @@ public class FileUtil {
 
     @Value("${upload.allowed-types}")
     private String[] allowedTypes;
+
+    public Resource loadFileAsResource(String fileName) throws IOException {
+        try {
+            Path filePath = Paths.get(uploadPath).resolve(fileName).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if(resource.exists()) {
+                return resource;
+            } else {
+                throw new FileNotFoundException("File not found: " + fileName);
+            }
+        } catch (MalformedURLException e) {
+            throw new FileNotFoundException("File not found: " + fileName);
+        }
+    }
 
     public String saveFile(MultipartFile file, String directory) throws IOException {
         validateFile(file);
@@ -42,41 +57,34 @@ public class FileUtil {
             Files.createDirectories(uploadDir);
         }
 
-        File dest = new File(uploadPath + "/" + filePath);
-        file.transferTo(dest);
+        // 使用NIO保存文件
+        Path targetLocation = uploadDir.resolve(fileName);
+        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
         return filePath;
     }
 
-    public void deleteFile(String filePath) {
-        try {
-            Path path = Paths.get(uploadPath + "/" + filePath);
-            Files.deleteIfExists(path);
-        } catch (IOException e) {
-            log.error("Delete file failed: {}", filePath, e);
-        }
+    public void deleteFile(String filePath) throws IOException {
+        Path path = Paths.get(uploadPath + "/" + filePath);
+        Files.deleteIfExists(path);
+    }
+
+    public boolean validateFileType(String contentType) {
+        return Arrays.asList(allowedTypes).contains(contentType);
     }
 
     private void validateFile(MultipartFile file) throws IOException {
         if (file.isEmpty()) {
-            throw new IOException("File is empty");
+            throw new IllegalArgumentException("文件为空");
         }
 
         if (file.getSize() > maxSize) {
-            throw new IOException("File size exceeds maximum limit");
+            throw new IllegalArgumentException("文件大小超过限制");
         }
 
         String contentType = file.getContentType();
-        boolean isAllowed = false;
-        for (String type : allowedTypes) {
-            if (type.equals(contentType)) {
-                isAllowed = true;
-                break;
-            }
-        }
-
-        if (!isAllowed) {
-            throw new IOException("File type not allowed");
+        if (contentType == null || !validateFileType(contentType)) {
+            throw new IllegalArgumentException("不支持的文件类型");
         }
     }
 
@@ -86,19 +94,13 @@ public class FileUtil {
     }
 
     private String getFileExtension(String filename) {
-        int lastDot = filename.lastIndexOf('.');
-        if (lastDot == -1) {
-            return "";
-        }
-        return filename.substring(lastDot);
-    }
-
-    public boolean isImage(MultipartFile file) {
-        String contentType = file.getContentType();
-        return contentType != null && contentType.startsWith("image/");
+        return filename.substring(filename.lastIndexOf("."));
     }
 
     public String getFileUrl(String filePath) {
-        return "/uploads/" + filePath;
+        if (filePath == null || filePath.trim().isEmpty()) {
+            return "";
+        }
+        return "/api/files/preview/" + filePath;
     }
 }

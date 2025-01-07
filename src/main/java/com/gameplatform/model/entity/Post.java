@@ -1,13 +1,13 @@
 package com.gameplatform.model.entity;
+
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * @author SakurazawaRyoko
@@ -37,9 +37,6 @@ public class Post {
     @JoinColumn(name = "game_id")
     private Game game;
 
-    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL)
-    private List<Comment> comments;
-
     @Column(nullable = false)
     private Integer viewCount = 0;
 
@@ -50,7 +47,7 @@ public class Post {
     private boolean isReported = false;
 
     @OneToMany(mappedBy = "post", cascade = CascadeType.ALL)
-    private Set<PostLike> likes = new HashSet<>();
+    private List<Comment> comments = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
