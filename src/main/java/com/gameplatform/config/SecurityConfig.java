@@ -2,9 +2,12 @@ package com.gameplatform.config;
 
 import com.gameplatform.security.JwtAuthenticationFilter;
 import com.gameplatform.security.JwtAuthenticationProvider;
+import com.gameplatform.security.CustomAccessDeniedHandler;
+import com.gameplatform.security.CustomAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
@@ -27,12 +30,33 @@ import org.springframework.web.filter.CorsFilter;
  */
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
+@EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationProvider jwtAuthenticationProvider;
+    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
+
+    private static final String[] AUTH_WHITELIST = {
+            // -- 静态资源
+            "/static/**",
+            "/favicon.ico",
+            // -- Swagger UI
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            // -- 认证相关
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/verification-code",
+            "/api/auth/reset-password",
+            // -- WebSocket
+            "/ws/**",
+            // -- 公开API
+            "/api/games/public/**",
+            "/api/posts/public/**"
+    };
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -53,34 +77,32 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http
+                .cors().and()
                 .csrf().disable()
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+                .exceptionHandling()
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
                 .and()
                 .authorizeRequests()
-                // 允许所有静态资源访问
-                .antMatchers("/static/**", "/uploads/**").permitAll()
-                // 允许认证相关接口的访问
-                .antMatchers("/api/auth/**").permitAll()
-                // 允许Swagger相关资源访问
-                .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                // WebSocket端点
-                .antMatchers("/ws/**").permitAll()
-                .anyRequest().authenticated()
+                // 白名单放行
+                .antMatchers(AUTH_WHITELIST).permitAll()
+                // OPTIONS请求放行
+                .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // 管理接口需要管理员权限
+                .antMatchers("/api/admin/**").hasRole("ADMIN")
+                // 用户相关接口需要认证
+                .antMatchers("/api/users/**").authenticated()
+                .antMatchers("/api/notifications/**").authenticated()
+                // 其他写操作需要认证
+                .antMatchers(HttpMethod.POST, "/api/**").authenticated()
+                .antMatchers(HttpMethod.PUT, "/api/**").authenticated()
+                .antMatchers(HttpMethod.DELETE, "/api/**").authenticated()
+                // 其他请求默认放行
+                .anyRequest().permitAll()
                 .and()
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .cors();
-    }
-
-    @Bean
-    public CorsFilter corsFilter() {
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
-        config.addAllowedOriginPattern("*");
-        config.addAllowedHeader("*");
-        config.addAllowedMethod("*");
-        config.addExposedHeader("Authorization");
-        source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }

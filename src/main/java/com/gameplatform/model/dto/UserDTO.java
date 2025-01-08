@@ -58,4 +58,5 @@ public class UserDTO {
     private Integer postCount;
     private boolean isFollowing;
     private boolean isBlocked;
+    private Set<String> permissions;
 }
