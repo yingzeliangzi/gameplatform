@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,11 +27,14 @@ public class JwtUtil {
     @Value("${jwt.expiration}")
     private Long expiration;
 
-    public String generateToken(String username) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("sub", username);
-        claims.put("created", new Date());
-        return generateToken(claims);
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser().setSigningKey(secret).parseClaimsJws(token);
+            return true;
+        } catch (SignatureException | MalformedJwtException | ExpiredJwtException | UnsupportedJwtException | IllegalArgumentException e) {
+            log.error("Token validation failed: {}", e.getMessage());
+            return false;
+        }
     }
 
     public String generateToken(Map<String, Object> claims) {
@@ -38,6 +43,20 @@ public class JwtUtil {
                 .setExpiration(generateExpirationDate())
                 .signWith(SignatureAlgorithm.HS512, secret)
                 .compact();
+    }
+
+    private Date generateExpirationDate() {
+        return Date.from(LocalDateTime.now()
+                .plusSeconds(expiration)
+                .atZone(ZoneId.systemDefault())
+                .toInstant());
+    }
+
+    public String generateToken(String username) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("sub", username);
+        claims.put("created", new Date());
+        return generateToken(claims);
     }
 
     public String getUsernameFromToken(String token) {
@@ -67,10 +86,6 @@ public class JwtUtil {
             claims = null;
         }
         return claims;
-    }
-
-    private Date generateExpirationDate() {
-        return new Date(System.currentTimeMillis() + expiration * 1000);
     }
 
     private boolean isTokenExpired(String token) {

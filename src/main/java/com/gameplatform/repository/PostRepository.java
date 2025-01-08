@@ -35,4 +35,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     );
 
     long countTotalComments();
+
+    Page<Post> findByTitleContainingOrContentContaining(String title, String content, Pageable pageable);
 }

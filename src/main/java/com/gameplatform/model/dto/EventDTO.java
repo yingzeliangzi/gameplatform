@@ -17,25 +17,13 @@ import java.util.Set;
 @Data
 public class EventDTO {
     private Long id;
-
-    @NotBlank(message = "活动标题不能为空")
     private String title;
-
-    @NotBlank(message = "活动描述不能为空")
     private String description;
-
     private Long gameId;
     private String gameName;
-
-    @NotNull(message = "活动类型不能为空")
     private Event.EventType type;
-
-    @NotNull(message = "开始时间不能为空")
     private LocalDateTime startTime;
-
-    @NotNull(message = "结束时间不能为空")
     private LocalDateTime endTime;
-
     private Integer maxParticipants;
     private Integer currentParticipants;
     private String location;
@@ -45,4 +33,7 @@ public class EventDTO {
     private Event.EventStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private boolean isRegistered;
+    private String contactInfo;
+    private String remark;
 }

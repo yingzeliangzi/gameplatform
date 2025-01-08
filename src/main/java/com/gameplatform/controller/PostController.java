@@ -1,6 +1,7 @@
 package com.gameplatform.controller;import com.gameplatform.model.dto.CommentDTO;
 import com.gameplatform.model.dto.PostDTO;
 import com.gameplatform.model.dto.ReportDTO;
+import com.gameplatform.model.entity.Report;
 import com.gameplatform.service.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -11,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.time.LocalDateTime;
 
 
 /**
@@ -70,11 +72,18 @@ public class PostController {
     }
 
     @PostMapping("/report")
-    public ResponseEntity<?> reportContent(
-            @Valid @RequestBody ReportDTO reportDTO,
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<?> reportContent(@Valid @RequestBody ReportDTO reportDTO,
+                                           @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        postService.reportContent(reportDTO, userId);
+        Report report = new Report();
+        report.setType(Report.ReportType.valueOf(reportDTO.getType()));
+        report.setTargetId(reportDTO.getTargetId());
+        report.setReason(reportDTO.getReason());
+        report.setDescription(reportDTO.getDescription());
+        report.setStatus(Report.ReportStatus.PENDING);
+        report.setCreatedAt(LocalDateTime.now());
+
+        reportRepository.save(report);
         return ResponseEntity.ok().build();
     }
 

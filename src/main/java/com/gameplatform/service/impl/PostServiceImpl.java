@@ -4,16 +4,15 @@ import com.gameplatform.annotation.RequirePermission;
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.dto.CommentDTO;
 import com.gameplatform.model.dto.PostDTO;
-import com.gameplatform.model.entity.Comment;
-import com.gameplatform.model.entity.Post;
-import com.gameplatform.model.entity.User;
-import com.gameplatform.repository.CommentRepository;
-import com.gameplatform.repository.PostRepository;
-import com.gameplatform.repository.UserRepository;
+import com.gameplatform.model.dto.ReportDTO;
+import com.gameplatform.model.dto.UserDTO;
+import com.gameplatform.model.entity.*;
+import com.gameplatform.repository.*;
 import com.gameplatform.service.CacheService;
 import com.gameplatform.service.NotificationService;
 import com.gameplatform.service.PostService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -39,9 +38,100 @@ public class PostServiceImpl implements PostService {
 
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final GameRepository gameRepository;
     private final CommentRepository commentRepository;
+    private final ReportRepository reportRepository;
+    private final PostLikeRepository postLikeRepository;
     private final NotificationService notificationService;
     private final CacheService cacheService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PostDTO> getPostsByGame(Long gameId, Pageable pageable) {
+        return postRepository.findByGameId(gameId, pageable)
+                .map(this::convertToDTO);
+    }
+
+    @Override
+    @Transactional
+    public void reportContent(ReportDTO reportDTO, Long userId) {
+        User reporter = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 检查是否已经举报过
+        if (reportRepository.existsByReporterIdAndTypeAndTargetIdAndStatus(
+                userId,
+                Report.ReportType.valueOf(reportDTO.getType()),
+                reportDTO.getTargetId(),
+                Report.ReportStatus.PENDING)) {
+            throw new BusinessException("已经举报过该内容");
+        }
+
+        Report report = new Report();
+        report.setReporter(reporter);
+        report.setType(Report.ReportType.valueOf(reportDTO.getType()));
+        report.setTargetId(reportDTO.getTargetId());
+        report.setReason(reportDTO.getReason());
+        report.setDescription(reportDTO.getDescription());
+        report.setStatus(Report.ReportStatus.PENDING);
+        report.setCreatedAt(LocalDateTime.now());
+
+        reportRepository.save(report);
+
+        // 更新目标内容的举报状态
+        switch (report.getType()) {
+            case POST -> {
+                Post post = postRepository.findById(report.getTargetId())
+                        .orElseThrow(() -> new BusinessException("帖子不存在"));
+                post.setReported(true);
+                postRepository.save(post);
+            }
+            case COMMENT -> {
+                Comment comment = commentRepository.findById(report.getTargetId())
+                        .orElseThrow(() -> new BusinessException("评论不存在"));
+                comment.setReported(true);
+                commentRepository.save(comment);
+            }
+        }
+    }
+
+    @Override
+    @Transactional
+    public void likePost(Long postId, Long userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException("帖子不存在"));
+
+        if (postLikeRepository.existsByPostIdAndUserId(postId, userId)) {
+            throw new BusinessException("已经点赞过此帖子");
+        }
+
+        PostLike postLike = new PostLike();
+        postLike.setPost(post);
+        postLike.setUser(userRepository.getReferenceById(userId));
+        postLikeRepository.save(postLike);
+
+        post.setLikeCount(post.getLikeCount() + 1);
+        postRepository.save(post);
+
+        // 发送点赞通知
+        if (!post.getAuthor().getId().equals(userId)) {
+            notificationService.sendNewPostNotification(post.getAuthor(), post);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void unlikePost(Long postId, Long userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException("帖子不存在"));
+
+        PostLike postLike = postLikeRepository.findByPostIdAndUserId(postId, userId)
+                .orElseThrow(() -> new BusinessException("未点赞此帖子"));
+
+        postLikeRepository.delete(postLike);
+        post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
+        postRepository.save(post);
+    }
 
     @Override
     @Transactional
@@ -97,34 +187,16 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    @Cacheable(value = "postCache", key = "#postId")
-    @Transactional(readOnly = true)
-    public PostDTO getPostById(Long postId) {
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException("帖子不存在"));
-
-        // 增加浏览量
-        post.setViewCount(post.getViewCount() + 1);
-        postRepository.save(post);
-
-        PostDTO dto = convertToDTO(post);
-        // 加载评论
-        dto.setComments(getPostTopComments(postId));
-        return dto;
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public Page<PostDTO> searchPosts(String keyword, Pageable pageable) {
-        // 确保分页排序
-        pageable = PageRequest.of(
-                pageable.getPageNumber(),
-                pageable.getPageSize(),
-                Sort.by(Sort.Direction.DESC, "createdAt")
-        );
-
-        return postRepository.searchPosts(keyword, pageable)
-                .map(this::convertToDTO);
+        Page<Post> posts;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            posts = postRepository.findByTitleContainingOrContentContaining(
+                    keyword.trim(), keyword.trim(), pageable);
+        } else {
+            posts = postRepository.findAll(pageable);
+        }
+        return posts.map(this::convertToDTO);
     }
 
     @Override
@@ -145,61 +217,10 @@ public class PostServiceImpl implements PostService {
 
         // 通知帖子作者
         if (!post.getAuthor().getId().equals(userId)) {
-            notificationService.sendCommentNotification(post.getAuthor(), post, author);
+            notificationService.sendNewCommentNotification(post.getAuthor(), post, author.getNickname());
         }
 
         return convertToCommentDTO(savedComment);
-    }
-
-    @Override
-    @Transactional
-    public CommentDTO replyToComment(Long commentId, CommentDTO replyDTO, Long userId) {
-        Comment parentComment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException("评论不存在"));
-        User author = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("用户不存在"));
-
-        Comment reply = new Comment();
-        reply.setContent(replyDTO.getContent());
-        reply.setAuthor(author);
-        reply.setPost(parentComment.getPost());
-        reply.setParentComment(parentComment);
-        reply.setCreatedAt(LocalDateTime.now());
-
-        Comment savedReply = commentRepository.save(reply);
-
-        // 通知被回复的用户
-        if (!parentComment.getAuthor().getId().equals(userId)) {
-            notificationService.sendReplyNotification(parentComment.getAuthor(), parentComment, author);
-        }
-
-        return convertToCommentDTO(savedReply);
-    }
-
-    @Override
-    @Transactional
-    @RequirePermission("post:manage")
-    public void deletePost(Long postId, Long userId) {
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException("帖子不存在"));
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("用户不存在"));
-
-        if (!post.getAuthor().getId().equals(userId) && !user.isAdmin()) {
-            throw new BusinessException("无权删除此帖子");
-        }
-
-        postRepository.delete(post);
-        cacheService.delete("postCache::"+postId);
-    }
-
-    private List<CommentDTO> getPostTopComments(Long postId) {
-        return commentRepository.findTopLevelCommentsByPostId(postId,
-                        PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt")))
-                .stream()
-                .map(this::convertToCommentDTO)
-                .collect(Collectors.toList());
     }
 
     private void notifyFollowers(Post post) {
@@ -218,15 +239,18 @@ public class PostServiceImpl implements PostService {
         return dto;
     }
 
+    private UserDTO convertToUserDTO(User user) {
+        UserDTO dto = new UserDTO();
+        BeanUtils.copyProperties(user, dto, "password");
+        return dto;
+    }
+
     private CommentDTO convertToCommentDTO(Comment comment) {
         CommentDTO dto = new CommentDTO();
         BeanUtils.copyProperties(comment, dto);
         dto.setAuthorId(comment.getAuthor().getId());
         dto.setAuthorName(comment.getAuthor().getNickname());
         dto.setAuthorAvatar(comment.getAuthor().getAvatar());
-        if (comment.getParentComment() != null) {
-            dto.setParentId(comment.getParentComment().getId());
-        }
         return dto;
     }
 }

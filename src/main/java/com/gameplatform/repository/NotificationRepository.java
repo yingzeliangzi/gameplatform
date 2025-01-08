@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -42,4 +43,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.id = :id AND n.user.id = :userId")
     void markAsRead(@Param("id") Long id, @Param("userId") Long userId);
+
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.createdAt < :threshold")
+    int deleteByCreatedAtBefore(@Param("threshold") LocalDateTime threshold);
 }

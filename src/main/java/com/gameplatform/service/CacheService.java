@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
  * @description TODO
  */
 public interface CacheService {
+
     void cacheUser(UserDTO userDTO);
     Optional<UserDTO> getCachedUser(Long userId);
     void invalidateUser(Long userId);

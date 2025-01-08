@@ -31,5 +31,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     Page<Event> findByGameId(@Param("gameId") Long gameId, Pageable pageable);
     Page<Event> findByTitleContainingIgnoreCase(String title, Pageable pageable);
     @Query("SELECT e FROM Event e WHERE e.title LIKE %:keyword%")
-    Page<Event> searchByKeyword(@Param("keyword") String keyword, Pageable pageable)
+    Page<Event> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    @Query("SELECT e FROM Event e WHERE " +
+            "(:keyword IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+            "AND (:type IS NULL OR e.type = :type)")
+    Page<Event> findBySearchCriteria(
+            @Param("keyword") String keyword,
+            @Param("type") Event.EventType type,
+            Pageable pageable
+    );
 }

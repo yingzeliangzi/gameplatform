@@ -1,10 +1,14 @@
 package com.gameplatform.config;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
-import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
-import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
-import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
+import org.springframework.messaging.simp.stomp.StompCommand;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.web.socket.config.annotation.*;
 
 
 /**
@@ -15,29 +19,34 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
  */
 @Configuration
 @EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // 设置消息代理前缀
         config.enableSimpleBroker("/topic", "/queue");
-        // 设置应用请求前缀
         config.setApplicationDestinationPrefixes("/app");
-        // 设置用户目的地前缀
         config.setUserDestinationPrefix("/user");
     }
 
     @Override
-    public void registerStompEndpoints(StompEndpoints registry) {
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
     }
 
     @Override
-    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
-        registration.setMessageSizeLimit(8192) // 设置消息大小限制
-                .setSendBufferSizeLimit(32768) // 设置发送缓冲区大小
-                .setSendTimeLimit(20000); // 设置发送超时时间
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(new ChannelInterceptor() {
+            @Override
+            public Message<?> preSend(Message<?> message, MessageChannel channel) {
+                StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(
+                        message, StompHeaderAccessor.class);
+                if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+                    // 在这里可以进行连接认证
+                }
+                return message;
+            }
+        });
     }
 }

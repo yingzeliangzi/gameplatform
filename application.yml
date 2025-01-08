@@ -46,6 +46,10 @@ spring:
     port: 6379
     database: 0
     timeout: 60000
+    key-prefix: "game:"
+    cache:
+      time-to-live: 3600000
+      cache-null-values: true
 
   cache:
     type: redis
@@ -54,6 +58,11 @@ spring:
       cache-null-values: true
       use-key-prefix: true
       key-prefix: "game:"
+
+  task:
+    scheduling:
+      pool:
+        size: 5
 
 jwt:
   secret: 1145141919810

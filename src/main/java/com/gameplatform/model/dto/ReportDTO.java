@@ -33,4 +33,5 @@ public class ReportDTO {
     private String handleResult;
     private LocalDateTime createdAt;
     private LocalDateTime handledAt;
+
 }
