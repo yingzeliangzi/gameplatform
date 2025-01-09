@@ -6,18 +6,18 @@ import com.gameplatform.model.dto.LoginResponseDTO;
 import com.gameplatform.model.dto.RegisterRequestDTO;
 import com.gameplatform.model.dto.UserDTO;
 import com.gameplatform.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import java.util.HashMap;
-import java.util.Map;
+import javax.validation.constraints.Email;
+import javax.validation.constraints.NotBlank;
 
 /**
  * @author SakurazawaRyoko
@@ -25,65 +25,88 @@ import java.util.Map;
  * @date 2024/12/29 1:22
  * @description TODO
  */
+@Tag(name = "认证接口", description = "用户认证相关接口")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Validated
 public class AuthController {
     private final UserService userService;
-    private final AuthenticationManager authenticationManager;
 
+    @Operation(summary = "用户登录", description = "使用用户名和密码登录")
     @PostMapping("/login")
-    public Result<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO loginRequest) {
-        try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getUsername(),
-                            loginRequest.getPassword()
-                    )
-            );
-
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            UserDTO userDTO = userService.login(loginRequest.getUsername(), loginRequest.getPassword());
-
-            LoginResponseDTO response = new LoginResponseDTO();
-            response.setToken(userDTO.getToken());
-            response.setUser(userDTO);
-
-            return Result.success(response);
-        } catch (BadCredentialsException e) {
-            return Result.error(401, "用户名或密码错误");
-        }
+    public Result<LoginResponseDTO> login(
+            @Parameter(description = "登录信息", required = true)
+            @Valid @RequestBody LoginRequestDTO loginRequest) {
+        LoginResponseDTO response = userService.login(loginRequest.getUsername(), loginRequest.getPassword());
+        return Result.success(response);
     }
 
+    @Operation(summary = "用户注册", description = "注册新用户")
     @PostMapping("/register")
-    public Result<UserDTO> register(@Valid @RequestBody RegisterRequestDTO registerRequest) {
+    public Result<UserDTO> register(
+            @Parameter(description = "注册信息", required = true)
+            @Valid @RequestBody RegisterRequestDTO registerRequest) {
         UserDTO registeredUser = userService.register(registerRequest);
         return Result.success(registeredUser);
     }
 
+    @Operation(summary = "发送验证码", description = "发送邮箱验证码")
     @PostMapping("/verification-code")
-    public Result<Void> sendVerificationCode(@RequestParam String email) {
+    public Result<Void> sendVerificationCode(
+            @Parameter(description = "邮箱地址", required = true)
+            @RequestParam @Email(message = "邮箱格式不正确") String email) {
         userService.sendVerificationCode(email);
         return Result.success("验证码已发送");
     }
 
+    @Operation(summary = "重置密码", description = "通过邮箱重置密码")
     @PostMapping("/reset-password")
-    public Result<Void> resetPassword(@RequestParam String email) {
+    public Result<Void> resetPassword(
+            @Parameter(description = "邮箱地址", required = true)
+            @RequestParam @Email(message = "邮箱格式不正确") String email) {
         userService.resetPassword(email);
         return Result.success("新密码已发送到您的邮箱");
     }
 
+    @Operation(summary = "用户登出", description = "退出登录")
     @PostMapping("/logout")
     public Result<Void> logout() {
-        userService.logout(SecurityContextHolder.getContext().getAuthentication().getName());
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            userService.logout(auth.getName());
+        }
         return Result.success("登出成功");
     }
 
+    @Operation(summary = "获取当前用户信息", description = "获取登录用户的详细信息")
     @GetMapping("/info")
     public Result<UserDTO> getUserInfo() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        UserDTO userInfo = userService.loadUserByUsername(username);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return Result.error(401, "未登录");
+        }
+        UserDTO userInfo = userService.loadUserByUsername(auth.getName());
         return Result.success(userInfo);
+    }
+
+    @Operation(summary = "刷新token", description = "刷新用户认证token")
+    @PostMapping("/refresh-token")
+    public Result<String> refreshToken(
+            @Parameter(description = "原token", required = true)
+            @RequestParam @NotBlank(message = "token不能为空") String token) {
+        if (userService.validateToken(token)) {
+            String refreshedToken = userService.refreshToken(token);
+            return Result.success(refreshedToken);
+        }
+        return Result.error(401, "无效的token");
+    }
+
+    @Operation(summary = "验证Token", description = "验证token是否有效")
+    @GetMapping("/validate-token")
+    public Result<Boolean> validateToken(
+            @Parameter(description = "token", required = true)
+            @RequestParam @NotBlank(message = "token不能为空") String token) {
+        return Result.success(userService.validateToken(token));
     }
 }

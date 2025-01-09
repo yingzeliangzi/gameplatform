@@ -3,6 +3,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -13,6 +14,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 import java.util.Arrays;
 import java.util.List;
@@ -50,7 +52,7 @@ public class FileUtil {
             Path filePath = Paths.get(uploadPath).resolve(fileName).normalize();
             Resource resource = new UrlResource(filePath.toUri());
 
-            if(resource.exists()) {
+            if (resource.exists()) {
                 return resource;
             } else {
                 throw new FileNotFoundException("File not found: " + fileName);
@@ -116,5 +118,22 @@ public class FileUtil {
             return "";
         }
         return "/api/files/preview/" + filePath;
+    }
+
+    public MediaType getMediaType(String fileName) {
+        String extension = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
+        switch (extension) {
+            case ".jpg":
+            case ".jpeg":
+                return MediaType.IMAGE_JPEG;
+            case ".png":
+                return MediaType.IMAGE_PNG;
+            case ".gif":
+                return MediaType.IMAGE_GIF;
+            case ".pdf":
+                return MediaType.APPLICATION_PDF;
+            default:
+                return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 }

@@ -21,5 +21,7 @@ public interface GameService {
     Page<GameDTO> getUserGames(Long userId, Pageable pageable);
     void addGameToUser(Long gameId, Long userId);
     void removeGameFromUser(Long gameId, Long userId);
-    void updatePopularGames(); // 添加这个方法声明
+    void updatePopularGames();
+    List<GameDTO> getHotGames();
+    List<GameDTO> getRecommendedGames(Long userId);
 }

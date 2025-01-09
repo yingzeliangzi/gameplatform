@@ -64,6 +64,18 @@ spring:
       pool:
         size: 5
 
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  show-actuator: true
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
 jwt:
   secret: 1145141919810
   expiration: 86400000 # 24 hours

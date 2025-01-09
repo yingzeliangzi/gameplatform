@@ -44,4 +44,5 @@ public interface UserService {
     void sendVerificationCode(String email);
     void resetPassword(String email);
     boolean isUserBlocked(Long userId, Long targetUserId);
+    String refreshToken(String token);
 }
