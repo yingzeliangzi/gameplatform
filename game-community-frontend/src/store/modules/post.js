@@ -1,138 +1,212 @@
-import request from '@/utils/request'
+import {
+    getPosts,
+    getPostDetail,
+    createPost,
+    updatePost,
+    deletePost,
+    likePost,
+    unlikePost,
+    addComment,
+    deleteComment,
+    reportPost,
+    getHotPosts,
+    collectPost,
+    uncollectPost
+} from '@/api/post';
 
-// 获取帖子列表
-export function getPosts(params) {
-    return request({
-        url: '/api/posts',
-        method: 'get',
-        params
-    })
-}
+const state = {
+    postList: [],
+    postDetail: null,
+    hotPosts: [],
+    total: 0,
+    loading: false,
+    submitting: false
+};
 
-// 获取帖子详情
-export function getPostDetail(id) {
-    return request({
-        url: `/api/posts/${id}`,
-        method: 'get'
-    })
-}
+const mutations = {
+    SET_POST_LIST(state, { posts, total }) {
+        state.postList = posts;
+        state.total = total;
+    },
+    SET_POST_DETAIL(state, post) {
+        state.postDetail = post;
+    },
+    SET_HOT_POSTS(state, posts) {
+        state.hotPosts = posts;
+    },
+    SET_LOADING(state, loading) {
+        state.loading = loading;
+    },
+    SET_SUBMITTING(state, submitting) {
+        state.submitting = submitting;
+    },
+    UPDATE_POST_LIKE(state, { postId, liked, likeCount }) {
+        if (state.postDetail?.id === postId) {
+            state.postDetail.liked = liked;
+            state.postDetail.likeCount = likeCount;
+        }
+        const post = state.postList.find(p => p.id === postId);
+        if (post) {
+            post.liked = liked;
+            post.likeCount = likeCount;
+        }
+    },
+    UPDATE_POST_COLLECT(state, { postId, collected }) {
+        if (state.postDetail?.id === postId) {
+            state.postDetail.collected = collected;
+        }
+        const post = state.postList.find(p => p.id === postId);
+        if (post) {
+            post.collected = collected;
+        }
+    },
+    ADD_COMMENT(state, { postId, comment }) {
+        if (state.postDetail?.id === postId) {
+            state.postDetail.comments.unshift(comment);
+            state.postDetail.commentCount++;
+        }
+    },
+    DELETE_COMMENT(state, { postId, commentId }) {
+        if (state.postDetail?.id === postId) {
+            const index = state.postDetail.comments.findIndex(c => c.id === commentId);
+            if (index > -1) {
+                state.postDetail.comments.splice(index, 1);
+                state.postDetail.commentCount--;
+            }
+        }
+    }
+};
 
-// 创建帖子
-export function createPost(data) {
-    return request({
-        url: '/api/posts',
-        method: 'post',
-        data
-    })
-}
+const actions = {
+    async getPostList({ commit }, params) {
+        commit('SET_LOADING', true);
+        try {
+            const { data } = await getPosts(params);
+            commit('SET_POST_LIST', {
+                posts: data.content,
+                total: data.totalElements
+            });
+            return data;
+        } finally {
+            commit('SET_LOADING', false);
+        }
+    },
 
-// 更新帖子
-export function updatePost(id, data) {
-    return request({
-        url: `/api/posts/${id}`,
-        method: 'put',
-        data
-    })
-}
+    async getPostDetail({ commit }, id) {
+        commit('SET_LOADING', true);
+        try {
+            const { data } = await getPostDetail(id);
+            commit('SET_POST_DETAIL', data);
+            return data;
+        } finally {
+            commit('SET_LOADING', false);
+        }
+    },
 
-// 删除帖子
-export function deletePost(id) {
-    return request({
-        url: `/api/posts/${id}`,
-        method: 'delete'
-    })
-}
+    async createPost({ commit }, postData) {
+        commit('SET_SUBMITTING', true);
+        try {
+            const { data } = await createPost(postData);
+            return data;
+        } finally {
+            commit('SET_SUBMITTING', false);
+        }
+    },
 
-// 点赞帖子
-export function likePost(id) {
-    return request({
-        url: `/api/posts/${id}/like`,
-        method: 'post'
-    })
-}
+    async likePost({ commit }, postId) {
+        try {
+            await likePost(postId);
+            commit('UPDATE_POST_LIKE', {
+                postId,
+                liked: true,
+                likeCount: (state.postDetail?.likeCount || 0) + 1
+            });
+        } catch (error) {
+            console.error('点赞失败:', error);
+            return Promise.reject(error);
+        }
+    },
 
-// 取消点赞
-export function unlikePost(id) {
-    return request({
-        url: `/api/posts/${id}/like`,
-        method: 'delete'
-    })
-}
+    async unlikePost({ commit }, postId) {
+        try {
+            await unlikePost(postId);
+            commit('UPDATE_POST_LIKE', {
+                postId,
+                liked: false,
+                likeCount: Math.max((state.postDetail?.likeCount || 0) - 1, 0)
+            });
+        } catch (error) {
+            console.error('取消点赞失败:', error);
+            return Promise.reject(error);
+        }
+    },
 
-// 添加评论
-export function addComment(postId, data) {
-    return request({
-        url: `/api/posts/${postId}/comments`,
-        method: 'post',
-        data
-    })
-}
+    async addComment({ commit }, { postId, commentData }) {
+        try {
+            const { data } = await addComment(postId, commentData);
+            commit('ADD_COMMENT', { postId, comment: data });
+            return data;
+        } catch (error) {
+            console.error('添加评论失败:', error);
+            return Promise.reject(error);
+        }
+    },
 
-// 回复评论
-export function replyComment(commentId, data) {
-    return request({
-        url: `/api/posts/comments/${commentId}/replies`,
-        method: 'post',
-        data
-    })
-}
+    async deleteComment({ commit }, { postId, commentId }) {
+        try {
+            await deleteComment(commentId);
+            commit('DELETE_COMMENT', { postId, commentId });
+        } catch (error) {
+            console.error('删除评论失败:', error);
+            return Promise.reject(error);
+        }
+    },
 
-// 获取评论列表
-export function getComments(postId, params) {
-    return request({
-        url: `/api/posts/${postId}/comments`,
-        method: 'get',
-        params
-    })
-}
+    async getHotPosts({ commit }) {
+        try {
+            const { data } = await getHotPosts();
+            commit('SET_HOT_POSTS', data);
+            return data;
+        } catch (error) {
+            console.error('获取热门帖子失败:', error);
+            return [];
+        }
+    },
 
-// 删除评论
-export function deleteComment(commentId) {
-    return request({
-        url: `/api/posts/comments/${commentId}`,
-        method: 'delete'
-    })
-}
+    async collectPost({ commit }, postId) {
+        try {
+            await collectPost(postId);
+            commit('UPDATE_POST_COLLECT', { postId, collected: true });
+        } catch (error) {
+            console.error('收藏失败:', error);
+            return Promise.reject(error);
+        }
+    },
 
-// 举报帖子
-export function reportPost(id, data) {
-    return request({
-        url: `/api/posts/${id}/report`,
-        method: 'post',
-        data
-    })
-}
+    async uncollectPost({ commit }, postId) {
+        try {
+            await uncollectPost(postId);
+            commit('UPDATE_POST_COLLECT', { postId, collected: false });
+        } catch (error) {
+            console.error('取消收藏失败:', error);
+            return Promise.reject(error);
+        }
+    }
+};
 
-// 获取用户的帖子
-export function getUserPosts(userId, params) {
-    return request({
-        url: `/api/users/${userId}/posts`,
-        method: 'get',
-        params
-    })
-}
+const getters = {
+    postList: state => state.postList,
+    postDetail: state => state.postDetail,
+    hotPosts: state => state.hotPosts,
+    loading: state => state.loading,
+    submitting: state => state.submitting,
+    total: state => state.total
+};
 
-// 收藏帖子
-export function collectPost(id) {
-    return request({
-        url: `/api/posts/${id}/collect`,
-        method: 'post'
-    })
-}
-
-// 取消收藏
-export function uncollectPost(id) {
-    return request({
-        url: `/api/posts/${id}/collect`,
-        method: 'delete'
-    })
-}
-
-// 获取收藏的帖子列表
-export function getCollectedPosts(params) {
-    return request({
-        url: '/api/posts/collected',
-        method: 'get',
-        params
-    })
-}
+export default {
+    namespaced: true,
+    state,
+    mutations,
+    actions,
+    getters
+};

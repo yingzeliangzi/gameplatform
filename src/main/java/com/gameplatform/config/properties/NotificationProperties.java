@@ -18,4 +18,7 @@ import java.util.List;
 public class NotificationProperties {
     private List<String> emailTypes;
     private String queue;
+    private Integer maxRetries;
+    private Integer retryDelay;
+    private Boolean enableBatchProcessing;
 }

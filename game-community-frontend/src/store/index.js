@@ -1,23 +1,31 @@
-import { createStore } from 'vuex'
-import createPersistedState from 'vuex-persistedstate'
-import auth from './modules/auth'
-import notification from './modules/notification'
-import comment from './modules/comment'
-import game from './modules/game'
-import event from './modules/event'
+import { createStore } from 'vuex';
+import createPersistedState from 'vuex-persistedstate';
+import auth from './modules/auth';
+import app from './modules/app';
+import user from './modules/user';
+import game from './modules/game';
+import post from './modules/post';
+import notification from './modules/notification';
 
 export default createStore({
     modules: {
         auth,
-        notification,
-        comment,
+        app,
+        user,
         game,
-        event
+        post,
+        notification
     },
     plugins: [
         createPersistedState({
             key: 'game-community',
-            paths: ['auth.token', 'auth.userInfo']
+            paths: [
+                'auth.token',
+                'user.userInfo',
+                'app.settings'
+            ],
+            storage: window.localStorage
         })
-    ]
-})
+    ],
+    strict: process.env.NODE_ENV !== 'production'
+});

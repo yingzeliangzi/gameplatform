@@ -1,10 +1,10 @@
 package com.gameplatform.model.entity;
+
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
-
 
 /**
  * @author SakurazawaRyoko
@@ -57,31 +57,8 @@ public class Notification {
         EVENT_CANCEL     // 活动取消
     }
 
-    // 创建系统通知的静态方法
-    public static Notification createSystemNotification(String title, String content, User user) {
-        Notification notification = new Notification();
-        notification.setTitle(title);
-        notification.setContent(content);
-        notification.setUser(user);
-        notification.setType(NotificationType.SYSTEM);
-        notification.setTargetType("SYSTEM");
-        return notification;
-    }
-
-    // 创建游戏折扣通知的静态方法
-    public static Notification createGameDiscountNotification(String title, String content, User user, Game game) {
-        Notification notification = new Notification();
-        notification.setTitle(title);
-        notification.setContent(content);
-        notification.setUser(user);
-        notification.setType(NotificationType.GAME_DISCOUNT);
-        notification.setTargetType("GAME");
-        notification.setTargetId(game.getId());
-        return notification;
-    }
-
-    // 创建活动提醒通知的静态方法
-    public static Notification createEventReminderNotification(String title, String content, User user, Event event) {
+    // 新增的静态工厂方法
+    public static Notification createEventNotification(String title, String content, User user, Event event) {
         Notification notification = new Notification();
         notification.setTitle(title);
         notification.setContent(content);
@@ -92,8 +69,7 @@ public class Notification {
         return notification;
     }
 
-    // 创建帖子回复通知的静态方法
-    public static Notification createPostReplyNotification(String title, String content, User user, Post post) {
+    public static Notification createPostNotification(String title, String content, User user, Post post) {
         Notification notification = new Notification();
         notification.setTitle(title);
         notification.setContent(content);
@@ -102,5 +78,39 @@ public class Notification {
         notification.setTargetType("POST");
         notification.setTargetId(post.getId());
         return notification;
+    }
+
+    public static Notification createGameNotification(String title, String content, User user, Game game) {
+        Notification notification = new Notification();
+        notification.setTitle(title);
+        notification.setContent(content);
+        notification.setUser(user);
+        notification.setType(NotificationType.GAME_DISCOUNT);
+        notification.setTargetType("GAME");
+        notification.setTargetId(game.getId());
+        return notification;
+    }
+
+    // 用于判断通知是否过期
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(this.createdAt.plusMonths(3));
+    }
+
+    // 用于标记通知为已读
+    public void markAsRead() {
+        this.isRead = true;
+        this.readAt = LocalDateTime.now();
+    }
+
+    // 用于获取目标URL
+    public String getTargetUrl() {
+        if (this.targetId == null) return null;
+
+        return switch (this.targetType) {
+            case "GAME" -> "/games/" + this.targetId;
+            case "EVENT" -> "/events/" + this.targetId;
+            case "POST" -> "/posts/" + this.targetId;
+            default -> null;
+        };
     }
 }

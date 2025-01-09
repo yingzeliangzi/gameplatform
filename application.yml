@@ -5,10 +5,16 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/game_community?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+    url: jdbc:mysql://localhost:3306/game_community?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
     username: admin
     password: 20031111
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
 
   jpa:
     hibernate:
@@ -18,72 +24,59 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
         format_sql: true
-
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
-
-  mail:
-    host: smtp.example.com        # SMTP服务器地址
-    port: 587                     # SMTP端口，常用587或465
-    username: email@example.com  # SMTP账号
-    password: password       # SMTP密码
-    properties:
-      mail:
-        smtp:
-          auth: true             # 启用SMTP认证
-          starttls:
-            enable: true         # 启用STARTTLS加密
-
-  activemq:
-    broker-url: tcp://localhost:61616
-    user: admin
-    password: admin
+        jdbc:
+          batch_size: 100
+        order_inserts: true
+        order_updates: true
 
   redis:
     host: localhost
     port: 6379
     database: 0
     timeout: 60000
-    key-prefix: "game:"
-    cache:
-      time-to-live: 3600000
-      cache-null-values: true
-
-  cache:
-    type: redis
-    redis:
-      time-to-live: 3600000
-      cache-null-values: true
-      use-key-prefix: true
-      key-prefix: "game:"
-
-  task:
-    scheduling:
+    lettuce:
       pool:
-        size: 5
+        max-active: 8
+        max-wait: -1
+        max-idle: 8
+        min-idle: 0
 
-springdoc:
-  api-docs:
-    enabled: true
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-    tags-sorter: alpha
-    operations-sorter: method
-  show-actuator: true
-  default-produces-media-type: application/json
-  default-consumes-media-type: application/json
+  activemq:
+    broker-url: tcp://localhost:61616
+    user: admin
+    password: admin
+    packages:
+      trust-all: false
+      trusted: com.gameplatform.model
+    pool:
+      enabled: true
+      max-connections: 10
+
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: your-email@qq.com
+    password: your-email-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 jwt:
   secret: 1145141919810
-  expiration: 86400000 # 24 hours
+  expiration: 86400000  # 24 hours
 
-  # 文件上传路径配置
 upload:
   path: ./uploads
-  max-size: 2097152  # 2MB
+  max-size: 10485760  # 10MB
   allowed-types:
     - image/jpeg
     - image/png
@@ -99,19 +92,38 @@ notification:
     - EVENT_REMINDER
     - GAME_DISCOUNT
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
-  endpoint:
-    health:
-      show-details: always
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  show-actuator: true
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
 
 logging:
   level:
     root: INFO
     com.gameplatform: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    org.hibernate: INFO
+  file:
+    name: logs/application.log
+    max-size: 10MB
+    max-history: 30
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always

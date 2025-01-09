@@ -14,7 +14,6 @@ gameplatform
 │  ├─ .env.staging
 │  ├─ eslint.config.mjs
 │  ├─ jsconfig.json
-│  ├─ package-lock.json
 │  ├─ package.json
 │  ├─ public
 │  │  └─ index.html
@@ -26,10 +25,12 @@ gameplatform
 │  │  │  ├─ event.js
 │  │  │  ├─ game.js
 │  │  │  ├─ home.js
+│  │  │  ├─ index.js
 │  │  │  ├─ notification.js
 │  │  │  ├─ post.js
 │  │  │  ├─ report.js
-│  │  │  └─ settings.js
+│  │  │  ├─ settings.js
+│  │  │  └─ user.js
 │  │  ├─ App.vue
 │  │  ├─ assets
 │  │  │  ├─ images
@@ -39,24 +40,47 @@ gameplatform
 │  │  │  └─ styles
 │  │  │     └─ index.scss
 │  │  ├─ components
-│  │  │  ├─ comment
-│  │  │  │  ├─ CommentEditior.vue
+│  │  │  ├─ AppMain.vue
+│  │  │  ├─ comments
+│  │  │  │  ├─ CommentEditor.vue
 │  │  │  │  ├─ CommentFilters.vue
 │  │  │  │  ├─ CommentItem.vue
 │  │  │  │  └─ CommentList.vue
 │  │  │  ├─ common
-│  │  │  │  ├─ Footer.vue
-│  │  │  │  ├─ Header.vue
-│  │  │  │  ├─ ImageUpload.vue
-│  │  │  │  └─ Sidebar.vue
+│  │  │  │  ├─ BaseList.vue
+│  │  │  │  └─ ImageUpload.vue
 │  │  │  ├─ event
+│  │  │  │  ├─ EventCard.vue
+│  │  │  │  └─ EventCardSimple.vue
+│  │  │  ├─ Footer.vue
 │  │  │  ├─ game
+│  │  │  │  ├─ GameCard.vue
 │  │  │  │  └─ GameCategories.vue
+│  │  │  ├─ Header.vue
+│  │  │  ├─ layout
+│  │  │  │  └─ PageContainer.vue
+│  │  │  ├─ Navbar.vue
+│  │  │  ├─ notification
+│  │  │  │  ├─ NotificationItem.vue
+│  │  │  │  └─ NotificationList.vue
 │  │  │  ├─ NotificationBell.vue
 │  │  │  ├─ NotificationList.vue
-│  │  │  └─ post
+│  │  │  ├─ post
+│  │  │  │  └─ PostCard.vue
+│  │  │  ├─ sidebar
+│  │  │  │  ├─ index.vue
+│  │  │  │  └─ SidebarItem.vue
+│  │  │  ├─ Sidebar.vue
+│  │  │  └─ upload
+│  │  │     ├─ AvatarUpload.vue
+│  │  │     └─ UploadComponent.vue
+│  │  ├─ hooks
+│  │  │  └─ useFormatTime.js
+│  │  ├─ layout
+│  │  │  └─ index.vue
 │  │  ├─ layouts
 │  │  │  ├─ AdminLayout.vue
+│  │  │  ├─ BasicLayout.vue
 │  │  │  ├─ Layout.vue
 │  │  │  └─ MainLayout.vue
 │  │  ├─ main.js
@@ -64,6 +88,8 @@ gameplatform
 │  │  ├─ router
 │  │  │  ├─ error.js
 │  │  │  ├─ index.js
+│  │  │  ├─ modules
+│  │  │  │  └─ routes.js
 │  │  │  └─ permission.js
 │  │  ├─ store
 │  │  │  ├─ index.js
@@ -74,20 +100,24 @@ gameplatform
 │  │  │     ├─ event.js
 │  │  │     ├─ game.js
 │  │  │     ├─ notification.js
+│  │  │     ├─ permission.js
 │  │  │     ├─ post.js
 │  │  │     ├─ statics.js
-│  │  │     └─ tagsView.js
+│  │  │     ├─ tagsView.js
+│  │  │     └─ user.js
 │  │  ├─ utils
 │  │  │  ├─ auth.js
 │  │  │  ├─ crypto.js
 │  │  │  ├─ form-rules.js
 │  │  │  ├─ index.js
 │  │  │  ├─ request.js
+│  │  │  ├─ time.js
 │  │  │  ├─ validate.js
 │  │  │  └─ websocket.js
 │  │  └─ views
 │  │     ├─ admin
 │  │     │  ├─ ContentManagement.vue
+│  │     │  ├─ Dashboard.vue
 │  │     │  ├─ PostManagement.vue
 │  │     │  ├─ ReportManagement.vue
 │  │     │  └─ UserManagement.vue
@@ -116,14 +146,17 @@ gameplatform
 │  │     ├─ Home.vue
 │  │     ├─ profile
 │  │     │  ├─ index.vue
+│  │     │  ├─ Profile.vue
 │  │     │  └─ UserProfile.vue
 │  │     └─ settings
-│  │        └─ index.vue
+│  │        ├─ index.vue
+│  │        └─ Settings.vue
 │  └─ vue.config.js
 ├─ jsconfig.json
 ├─ mvnw
 ├─ mvnw.cmd
 ├─ package-lock.json
+├─ package.json
 ├─ pom.xml
 ├─ README.md
 ├─ src
@@ -131,16 +164,32 @@ gameplatform
 │  │  ├─ java
 │  │  │  └─ com
 │  │  │     └─ gameplatform
+│  │  │        ├─ annotation
+│  │  │        │  └─ RequirePermission.java
+│  │  │        ├─ aspect
+│  │  │        │  └─ PermissionAspect.java
+│  │  │        ├─ common
+│  │  │        │  └─ Result.java
 │  │  │        ├─ config
+│  │  │        │  ├─ ActiveMQConfig.java
 │  │  │        │  ├─ CorsConfig.java
+│  │  │        │  ├─ JmsConfig.java
+│  │  │        │  ├─ properties
+│  │  │        │  │  └─ NotificationProperties.java
+│  │  │        │  ├─ RedisConfig.java
+│  │  │        │  ├─ RedisHealthIndicator.java
+│  │  │        │  ├─ SchedulingConfig.java
 │  │  │        │  ├─ SecurityConfig.java
 │  │  │        │  ├─ SwaggerConfig.java
-│  │  │        │  └─ WebSocketConfig.java
+│  │  │        │  ├─ ThymeleafConfig.java
+│  │  │        │  ├─ WebSocketConfig.java
+│  │  │        │  └─ WebSocketEventListener.java
 │  │  │        ├─ controller
 │  │  │        │  ├─ AdminController.java
 │  │  │        │  ├─ AuthController.java
 │  │  │        │  ├─ CommentController.java
 │  │  │        │  ├─ EventController.java
+│  │  │        │  ├─ FileController.java
 │  │  │        │  ├─ GameController.java
 │  │  │        │  ├─ NotificationController.java
 │  │  │        │  ├─ PostController.java
@@ -168,28 +217,33 @@ gameplatform
 │  │  │        │  │  ├─ LoginRequestDTO.java
 │  │  │        │  │  ├─ LoginResponseDTO.java
 │  │  │        │  │  ├─ NotificationDTO.java
+│  │  │        │  │  ├─ NotificationSettingsDTO.java
+│  │  │        │  │  ├─ PasswordUpdateDTO.java
 │  │  │        │  │  ├─ PostDTO.java
 │  │  │        │  │  ├─ RegisterRequestDTO.java
 │  │  │        │  │  ├─ ReportDTO.java
 │  │  │        │  │  ├─ StatisticsDTO.java
 │  │  │        │  │  ├─ UnreadCountDTO.java
 │  │  │        │  │  ├─ UserDTO.java
-│  │  │        │  │  └─ UserGameDTO.java
-│  │  │        │  └─ entity
-│  │  │        │     ├─ Comment.java
-│  │  │        │     ├─ CommentLike.java
-│  │  │        │     ├─ DailyStatistics.java
-│  │  │        │     ├─ Event.java
-│  │  │        │     ├─ EventRegistration.java
-│  │  │        │     ├─ Game.java
-│  │  │        │     ├─ Notification.java
-│  │  │        │     ├─ Post.java
-│  │  │        │     ├─ PostLike.java
-│  │  │        │     ├─ Report.java
-│  │  │        │     ├─ Setting.java
-│  │  │        │     ├─ User.java
-│  │  │        │     ├─ UserGame.java
-│  │  │        │     └─ UserSetting.java
+│  │  │        │  │  ├─ UserGameDTO.java
+│  │  │        │  │  └─ UserProfileDTO.java
+│  │  │        │  ├─ entity
+│  │  │        │  │  ├─ Comment.java
+│  │  │        │  │  ├─ CommentLike.java
+│  │  │        │  │  ├─ DailyStatistics.java
+│  │  │        │  │  ├─ Event.java
+│  │  │        │  │  ├─ EventRegistration.java
+│  │  │        │  │  ├─ Game.java
+│  │  │        │  │  ├─ Notification.java
+│  │  │        │  │  ├─ Post.java
+│  │  │        │  │  ├─ PostLike.java
+│  │  │        │  │  ├─ Report.java
+│  │  │        │  │  ├─ Setting.java
+│  │  │        │  │  ├─ User.java
+│  │  │        │  │  ├─ UserGame.java
+│  │  │        │  │  └─ UserSetting.java
+│  │  │        │  └─ message
+│  │  │        │     └─ NotificationMessage.java
 │  │  │        ├─ repository
 │  │  │        │  ├─ CommentLikeRepository.java
 │  │  │        │  ├─ CommentRepository.java
@@ -206,15 +260,22 @@ gameplatform
 │  │  │        │  ├─ UserRepository.java
 │  │  │        │  └─ UserSettingRepository.java
 │  │  │        ├─ security
+│  │  │        │  ├─ CustomAccessDeniedHandler.java
+│  │  │        │  ├─ CustomAuthenticationEntryPoint.java
 │  │  │        │  ├─ JwtAuthenticationFilter.java
-│  │  │        │  └─ JwtAuthenticationProvider.java
+│  │  │        │  ├─ JwtAuthenticationProvider.java
+│  │  │        │  └─ WebSocketAuthenticationInterceptor.java
 │  │  │        ├─ service
+│  │  │        │  ├─ BaseEventService.java
+│  │  │        │  ├─ CacheService.java
 │  │  │        │  ├─ CommentService.java
 │  │  │        │  ├─ EmailService.java
 │  │  │        │  ├─ EventService.java
 │  │  │        │  ├─ GameService.java
 │  │  │        │  ├─ impl
+│  │  │        │  │  ├─ CacheServiceImpl.java
 │  │  │        │  │  ├─ CommentServiceImpl.java
+│  │  │        │  │  ├─ EmailServiceImpl.java
 │  │  │        │  │  ├─ EventServiceImpl.java
 │  │  │        │  │  ├─ GameServiceImpl.java
 │  │  │        │  │  ├─ NotificationServiceImpl.java
@@ -222,8 +283,12 @@ gameplatform
 │  │  │        │  │  ├─ SettingsServiceImpl.java
 │  │  │        │  │  ├─ StatisticsServiceImpl.java
 │  │  │        │  │  └─ UserServiceImpl.java
+│  │  │        │  ├─ message
+│  │  │        │  │  └─ NotificationListener.java
 │  │  │        │  ├─ NotificationService.java
 │  │  │        │  ├─ PostService.java
+│  │  │        │  ├─ scheduled
+│  │  │        │  │  └─ ScheduledTasks.java
 │  │  │        │  ├─ SettingsService.java
 │  │  │        │  ├─ StatisticsService.java
 │  │  │        │  ├─ UserService.java
@@ -233,7 +298,8 @@ gameplatform
 │  │  │           ├─ FileUtil.java
 │  │  │           ├─ IpUtils.java
 │  │  │           ├─ JwtUtil.java
-│  │  │           └─ PageUtils.java
+│  │  │           ├─ PageUtils.java
+│  │  │           └─ VerificationCodeUtil.java
 │  │  └─ resources
 │  │     ├─ application.properties
 │  │     ├─ static

@@ -1,15 +1,14 @@
 package com.gameplatform.util;
+
+import com.gameplatform.exception.BusinessException;
 import io.jsonwebtoken.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-
 
 /**
  * @author SakurazawaRyoko
@@ -27,17 +26,74 @@ public class JwtUtil {
     @Value("${jwt.expiration}")
     private Long expiration;
 
-    public boolean validateToken(String token) {
+    private static final String CLAIM_KEY_USERNAME = "sub";
+    private static final String CLAIM_KEY_CREATED = "created";
+    private static final String CLAIM_KEY_USER_ID = "userId";
+
+    public String generateToken(String username, Long userId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(CLAIM_KEY_USERNAME, username);
+        claims.put(CLAIM_KEY_CREATED, new Date());
+        claims.put(CLAIM_KEY_USER_ID, userId);
+        return generateToken(claims);
+    }
+
+    public String getUsernameFromToken(String token) {
         try {
-            Jwts.parser().setSigningKey(secret).parseClaimsJws(token);
-            return true;
-        } catch (SignatureException | MalformedJwtException | ExpiredJwtException | UnsupportedJwtException | IllegalArgumentException e) {
-            log.error("Token validation failed: {}", e.getMessage());
-            return false;
+            Claims claims = getClaimsFromToken(token);
+            return claims.getSubject();
+        } catch (Exception e) {
+            log.error("从token获取用户名失败: {}", e.getMessage());
+            return null;
         }
     }
 
-    public String generateToken(Map<String, Object> claims) {
+    public Long getUserIdFromToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            return Long.parseLong(claims.get(CLAIM_KEY_USER_ID).toString());
+        } catch (Exception e) {
+            log.error("从token获取用户ID失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser()
+                    .setSigningKey(secret)
+                    .parseClaimsJws(token);
+            return true;
+        } catch (SignatureException e) {
+            log.error("无效的JWT签名: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.UNAUTHORIZED, "无效的JWT签名");
+        } catch (MalformedJwtException e) {
+            log.error("无效的JWT token: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.UNAUTHORIZED, "无效的JWT token");
+        } catch (ExpiredJwtException e) {
+            log.error("JWT token已过期: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.UNAUTHORIZED, "JWT token已过期");
+        } catch (UnsupportedJwtException e) {
+            log.error("不支持的JWT token: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.UNAUTHORIZED, "不支持的JWT token");
+        } catch (IllegalArgumentException e) {
+            log.error("JWT token为空: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.UNAUTHORIZED, "JWT token为空");
+        }
+    }
+
+    public String refreshToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            claims.put(CLAIM_KEY_CREATED, new Date());
+            return generateToken(claims);
+        } catch (Exception e) {
+            log.error("刷新token失败: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.UNAUTHORIZED, "刷新token失败");
+        }
+    }
+
+    private String generateToken(Map<String, Object> claims) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setExpiration(generateExpirationDate())
@@ -46,68 +102,13 @@ public class JwtUtil {
     }
 
     private Date generateExpirationDate() {
-        return Date.from(LocalDateTime.now()
-                .plusSeconds(expiration)
-                .atZone(ZoneId.systemDefault())
-                .toInstant());
-    }
-
-    public String generateToken(String username) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("sub", username);
-        claims.put("created", new Date());
-        return generateToken(claims);
-    }
-
-    public String getUsernameFromToken(String token) {
-        String username;
-        try {
-            Claims claims = getClaimsFromToken(token);
-            username = claims.getSubject();
-        } catch (Exception e) {
-            username = null;
-        }
-        return username;
-    }
-
-    public boolean validateToken(String token, String username) {
-        String tokenUsername = getUsernameFromToken(token);
-        return (tokenUsername.equals(username) && !isTokenExpired(token));
+        return new Date(System.currentTimeMillis() + expiration * 1000);
     }
 
     private Claims getClaimsFromToken(String token) {
-        Claims claims;
-        try {
-            claims = Jwts.parser()
-                    .setSigningKey(secret)
-                    .parseClaimsJws(token)
-                    .getBody();
-        } catch (Exception e) {
-            claims = null;
-        }
-        return claims;
-    }
-
-    private boolean isTokenExpired(String token) {
-        Date expiration;
-        try {
-            Claims claims = getClaimsFromToken(token);
-            expiration = claims.getExpiration();
-        } catch (Exception e) {
-            expiration = null;
-        }
-        return expiration == null || expiration.before(new Date());
-    }
-
-    public String refreshToken(String token) {
-        String refreshedToken;
-        try {
-            Claims claims = getClaimsFromToken(token);
-            claims.put("created", new Date());
-            refreshedToken = generateToken(claims);
-        } catch (Exception e) {
-            refreshedToken = null;
-        }
-        return refreshedToken;
+        return Jwts.parser()
+                .setSigningKey(secret)
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

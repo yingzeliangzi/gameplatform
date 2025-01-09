@@ -1,5 +1,6 @@
 package com.gameplatform.exception;
 
+import com.gameplatform.common.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -33,116 +34,86 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException ex) {
-        log.error("Business error: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse(ex.getCode(), ex.getMessage()),
-                HttpStatus.BAD_REQUEST
-        );
+    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException ex) {
+        log.error("业务异常: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(ex.getCode(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Result<Object>> handleValidationException(ValidationException ex) {
+        log.error("参数验证异常: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(ex.getCode(), ex.getMessage(), ex.getValidationResult()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(ResourceNotFoundException ex) {
-        log.error("Resource not found: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse(ex.getCode(), ex.getMessage()),
-                HttpStatus.NOT_FOUND
-        );
+    public ResponseEntity<Result<Void>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        log.error("资源未找到: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(Result.error(ex.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handleAuthenticationException(AuthenticationException ex) {
-        log.error("Authentication error: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("AUTH_ERROR", ex.getMessage()),
-                HttpStatus.UNAUTHORIZED
-        );
-    }
-
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredentialsException(BadCredentialsException ex) {
-        log.error("Bad credentials: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("AUTH_ERROR", "Invalid username or password"),
-                HttpStatus.UNAUTHORIZED
-        );
+    public ResponseEntity<Result<Void>> handleAuthenticationException(AuthenticationException ex) {
+        log.error("认证异常: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Result.error(BusinessException.ErrorCode.UNAUTHORIZED, "认证失败"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex) {
-        log.error("Access denied: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("ACCESS_DENIED", "Access denied"),
-                HttpStatus.FORBIDDEN
-        );
+    public ResponseEntity<Result<Void>> handleAccessDeniedException(AccessDeniedException ex) {
+        log.error("访问拒绝: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(Result.error(BusinessException.ErrorCode.FORBIDDEN, "无权访问"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
+    public ResponseEntity<Result<Map<String, String>>> handleValidationExceptions(
+            MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-
-        String message = errors.entrySet().stream()
-                .map(entry -> entry.getKey() + ": " + entry.getValue())
-                .collect(Collectors.joining("; "));
-
-        log.error("Validation error: {}", message, ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("VALIDATION_ERROR", message),
-                HttpStatus.BAD_REQUEST
-        );
+        log.error("参数校验失败: {}", errors);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(BusinessException.ErrorCode.VALIDATION_ERROR, "参数校验失败", errors));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleConstraintViolationException(ConstraintViolationException ex) {
+    public ResponseEntity<Result<String>> handleConstraintViolationException(
+            ConstraintViolationException ex) {
         String message = ex.getConstraintViolations().stream()
                 .map(ConstraintViolation::getMessage)
                 .collect(Collectors.joining("; "));
-
-        log.error("Constraint violation: {}", message, ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("VALIDATION_ERROR", message),
-                HttpStatus.BAD_REQUEST
-        );
+        log.error("约束违反: {}", message);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(BusinessException.ErrorCode.VALIDATION_ERROR, message));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
-        log.error("File size exceeded: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("FILE_SIZE_ERROR", "Upload file size exceeds limit"),
-                HttpStatus.BAD_REQUEST
-        );
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
-        log.error("Data integrity violation: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("DATA_ERROR", "Data integrity violation"),
-                HttpStatus.BAD_REQUEST
-        );
-    }
-
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ErrorResponse> handleMissingParams(MissingServletRequestParameterException ex) {
-        log.error("Missing parameter: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("PARAMETER_ERROR", "Missing required parameter: " + ex.getParameterName()),
-                HttpStatus.BAD_REQUEST
-        );
+    public ResponseEntity<Result<Void>> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException ex) {
+        log.error("文件大小超出限制: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(BusinessException.ErrorCode.INVALID_PARAMETER, "上传文件过大"));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleException(Exception ex) {
-        log.error("Unexpected error: ", ex);
-        return new ResponseEntity<>(
-                new ErrorResponse("INTERNAL_ERROR", "An unexpected error occurred"),
-                HttpStatus.INTERNAL_SERVER_ERROR
-        );
+    public ResponseEntity<Result<Void>> handleException(Exception ex) {
+        log.error("系统异常: ", ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Result.error(BusinessException.ErrorCode.SYSTEM_ERROR, "系统异常"));
     }
 }

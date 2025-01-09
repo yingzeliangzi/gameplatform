@@ -7,14 +7,14 @@ import lombok.AllArgsConstructor;
 
 import java.io.Serializable;
 
-@
+
 /**
  * @author SakurazawaRyoko
  * @version 1.0
  * @date 2025/01/06 1:23
  * @description TODO
  */
-Data
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class NotificationMessage implements Serializable {

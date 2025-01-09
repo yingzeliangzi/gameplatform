@@ -1,34 +1,26 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import { getToken } from '@/utils/auth'
-import NProgress from 'nprogress'
-import 'nprogress/nprogress.css'
+import { createRouter, createWebHistory } from 'vue-router';
+import Layout from '@/layout/index.vue';
 
-// 路由懒加载
-const Layout = () => import('@/layouts/BasicLayout.vue')
-const Login = () => import('@/views/auth/Login.vue')
-const Register = () => import('@/views/auth/Register.vue')
-const Home = () => import('@/views/Home.vue')
-const Profile = () => import('@/views/user/Profile.vue')
-const NotFound = () => import('@/views/error/404.vue')
-
-// 公共路由
-export const constantRoutes = [
+const routes = [
+    {
+        path: '/redirect',
+        component: Layout,
+        hidden: true,
+        children: [
+            {
+                path: '/redirect/:path(.*)',
+                component: () => import('@/views/redirect/index.vue')
+            }
+        ]
+    },
     {
         path: '/login',
-        component: Login,
-        meta: { title: '登录' },
+        component: () => import('@/views/auth/Login.vue'),
         hidden: true
     },
     {
         path: '/register',
-        component: Register,
-        meta: { title: '注册' },
-        hidden: true
-    },
-    {
-        path: '/404',
-        component: NotFound,
-        meta: { title: '404' },
+        component: () => import('@/views/auth/Register.vue'),
         hidden: true
     },
     {
@@ -38,79 +30,106 @@ export const constantRoutes = [
         children: [
             {
                 path: 'home',
-                component: Home,
+                component: () => import('@/views/home/index.vue'),
                 name: 'Home',
-                meta: { title: '首页', icon: 'home' }
+                meta: { title: '首页', icon: 'home', affix: true }
+            }
+        ]
+    },
+    {
+        path: '/games',
+        component: Layout,
+        children: [
+            {
+                path: '',
+                component: () => import('@/views/games/index.vue'),
+                name: 'Games',
+                meta: { title: '游戏库', icon: 'game' }
+            },
+            {
+                path: ':id',
+                component: () => import('@/views/games/detail.vue'),
+                name: 'GameDetail',
+                meta: { title: '游戏详情', activeMenu: '/games' },
+                hidden: true
+            }
+        ]
+    },
+    {
+        path: '/posts',
+        component: Layout,
+        children: [
+            {
+                path: '',
+                component: () => import('@/views/posts/index.vue'),
+                name: 'Posts',
+                meta: { title: '社区', icon: 'message' }
+            },
+            {
+                path: ':id',
+                component: () => import('@/views/posts/detail.vue'),
+                name: 'PostDetail',
+                meta: { title: '帖子详情', activeMenu: '/posts' },
+                hidden: true
+            },
+            {
+                path: 'create',
+                component: () => import('@/views/posts/create.vue'),
+                name: 'CreatePost',
+                meta: { title: '发帖', activeMenu: '/posts' },
+                hidden: true
+            }
+        ]
+    },
+    {
+        path: '/events',
+        component: Layout,
+        children: [
+            {
+                path: '',
+                component: () => import('@/views/events/index.vue'),
+                name: 'Events',
+                meta: { title: '活动', icon: 'event' }
+            },
+            {
+                path: ':id',
+                component: () => import('@/views/events/detail.vue'),
+                name: 'EventDetail',
+                meta: { title: '活动详情', activeMenu: '/events' },
+                hidden: true
             }
         ]
     },
     {
         path: '/user',
         component: Layout,
-        redirect: '/user/profile',
         hidden: true,
         children: [
             {
                 path: 'profile',
-                component: Profile,
+                component: () => import('@/views/user/profile.vue'),
                 name: 'Profile',
-                meta: { title: '个人中心', requireAuth: true }
+                meta: { title: '个人中心' }
+            },
+            {
+                path: 'settings',
+                component: () => import('@/views/user/settings.vue'),
+                name: 'Settings',
+                meta: { title: '设置' }
             }
         ]
     }
-]
-
-// 动态路由，用于加载有权限的路由
-export const asyncRoutes = []
+];
 
 const router = createRouter({
     history: createWebHistory(),
-    routes: constantRoutes,
-    scrollBehavior(to, from, savedPosition) {
+    routes,
+    scrollBehavior: (to, from, savedPosition) => {
         if (savedPosition) {
-            return savedPosition
-        } else {
-            return { top: 0 }
+            return savedPosition;
         }
+        return { top: 0 };
     }
-})
+});
 
-// 白名单路由
-const whiteList = ['/login', '/register', '/404', '/403']
-
-router.beforeEach(async (to, from, next) => {
-    NProgress.start()
-
-    // 设置页面标题
-    document.title = to.meta.title ? `${to.meta.title} - 游戏社区` : '游戏社区'
-
-    const hasToken = getToken()
-
-    if (hasToken) {
-        if (to.path === '/login') {
-            next({ path: '/' })
-            NProgress.done()
-        } else {
-            try {
-                next()
-            } catch (error) {
-                console.error('路由错误:', error)
-                next(`/login?redirect=${to.path}`)
-                NProgress.done()
-            }
-        }
-    } else {
-        if (whiteList.includes(to.path)) {
-            next()
-        } else {
-            next(`/login?redirect=${to.path}`)
-            NProgress.done()
-        }
-    }
-})
-
-router.afterEach(() => {
-    NProgress.done()
-})
-
-export default router
+export default router;

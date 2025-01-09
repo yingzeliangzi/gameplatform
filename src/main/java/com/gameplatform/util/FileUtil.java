@@ -1,24 +1,19 @@
 package com.gameplatform.util;
+
+import com.gameplatform.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.UUID;
-import java.util.Arrays;
-import java.util.List;
-
+import java.nio.file.*;
+import java.util.*;
 
 /**
  * @author SakurazawaRyoko
@@ -26,8 +21,8 @@ import java.util.List;
  * @date 2024/12/28 15:12
  * @description TODO
  */
-@Component
 @Slf4j
+@Component
 public class FileUtil {
 
     @Value("${upload.path}")
@@ -39,68 +34,94 @@ public class FileUtil {
     @Value("${upload.allowed-types}")
     private List<String> allowedTypes;
 
-    public boolean isValidFileType(String contentType) {
-        return allowedTypes.contains(contentType);
-    }
+    private static final Map<String, MediaType> MEDIA_TYPE_MAP = new HashMap<>();
 
-    public boolean isValidFileType(MultipartFile file) {
-        return file != null && isValidFileType(file.getContentType());
-    }
-
-    public Resource loadFileAsResource(String fileName) throws IOException {
-        try {
-            Path filePath = Paths.get(uploadPath).resolve(fileName).normalize();
-            Resource resource = new UrlResource(filePath.toUri());
-
-            if (resource.exists()) {
-                return resource;
-            } else {
-                throw new FileNotFoundException("File not found: " + fileName);
-            }
-        } catch (MalformedURLException e) {
-            throw new FileNotFoundException("File not found: " + fileName);
-        }
+    static {
+        MEDIA_TYPE_MAP.put(".jpg", MediaType.IMAGE_JPEG);
+        MEDIA_TYPE_MAP.put(".jpeg", MediaType.IMAGE_JPEG);
+        MEDIA_TYPE_MAP.put(".png", MediaType.IMAGE_PNG);
+        MEDIA_TYPE_MAP.put(".gif", MediaType.IMAGE_GIF);
+        MEDIA_TYPE_MAP.put(".pdf", MediaType.APPLICATION_PDF);
+        MEDIA_TYPE_MAP.put(".doc", MediaType.parseMediaType("application/msword"));
+        MEDIA_TYPE_MAP.put(".docx", MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
     }
 
     public String saveFile(MultipartFile file, String directory) throws IOException {
         validateFile(file);
 
         String fileName = generateFileName(file.getOriginalFilename());
-        String filePath = directory + "/" + fileName;
+        String fullDirectory = uploadPath + "/" + directory;
+        Path uploadDir = Paths.get(fullDirectory);
 
-        Path uploadDir = Paths.get(uploadPath + "/" + directory);
         if (!Files.exists(uploadDir)) {
-            Files.createDirectories(uploadDir);
+            try {
+                Files.createDirectories(uploadDir);
+            } catch (IOException e) {
+                log.error("创建目录失败: {}", e.getMessage());
+                throw new BusinessException(BusinessException.ErrorCode.SYSTEM_ERROR, "创建目录失败");
+            }
         }
 
-        // 使用NIO保存文件
-        Path targetLocation = uploadDir.resolve(fileName);
-        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+        Path filePath = uploadDir.resolve(fileName);
+        try {
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            return directory + "/" + fileName;
+        } catch (IOException e) {
+            log.error("保存文件失败: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.SYSTEM_ERROR, "保存文件失败");
+        }
+    }
 
-        return filePath;
+    public Resource loadFileAsResource(String filePath) {
+        try {
+            Path path = Paths.get(uploadPath).resolve(filePath).normalize();
+            Resource resource = new UrlResource(path.toUri());
+            if (resource.exists()) {
+                return resource;
+            } else {
+                throw new BusinessException(BusinessException.ErrorCode.NOT_FOUND, "文件不存在");
+            }
+        } catch (MalformedURLException e) {
+            log.error("文件路径错误: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.SYSTEM_ERROR, "文件路径错误");
+        }
     }
 
     public void deleteFile(String filePath) throws IOException {
-        Path path = Paths.get(uploadPath + "/" + filePath);
-        Files.deleteIfExists(path);
+        Path path = Paths.get(uploadPath).resolve(filePath).normalize();
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.error("删除文件失败: {}", e.getMessage());
+            throw new BusinessException(BusinessException.ErrorCode.SYSTEM_ERROR, "删除文件失败");
+        }
     }
 
-    public boolean validateFileType(String contentType) {
-        return Arrays.asList(allowedTypes).contains(contentType);
+    public MediaType getMediaType(String fileName) {
+        String extension = getFileExtension(fileName).toLowerCase();
+        return MEDIA_TYPE_MAP.getOrDefault(extension, MediaType.APPLICATION_OCTET_STREAM);
     }
 
-    private void validateFile(MultipartFile file) throws IOException {
+    public boolean isValidFileType(MultipartFile file) {
+        if (file == null || file.getContentType() == null) {
+            return false;
+        }
+        return allowedTypes.contains(file.getContentType());
+    }
+
+    private void validateFile(MultipartFile file) {
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("文件为空");
+            throw new BusinessException(BusinessException.ErrorCode.INVALID_PARAMETER, "文件为空");
         }
 
         if (file.getSize() > maxSize) {
-            throw new IllegalArgumentException("文件大小超过限制");
+            throw new BusinessException(BusinessException.ErrorCode.INVALID_PARAMETER,
+                    String.format("文件大小超过限制: %d MB", maxSize / (1024 * 1024)));
         }
 
-        String contentType = file.getContentType();
-        if (contentType == null || !validateFileType(contentType)) {
-            throw new IllegalArgumentException("不支持的文件类型");
+        if (!isValidFileType(file)) {
+            throw new BusinessException(BusinessException.ErrorCode.INVALID_PARAMETER,
+                    "不支持的文件类型，允许的类型: " + String.join(", ", allowedTypes));
         }
     }
 
@@ -110,30 +131,36 @@ public class FileUtil {
     }
 
     private String getFileExtension(String filename) {
-        return filename.substring(filename.lastIndexOf("."));
+        if (filename == null) {
+            return "";
+        }
+        int dotIndex = filename.lastIndexOf(".");
+        return dotIndex == -1 ? "" : filename.substring(dotIndex);
     }
 
     public String getFileUrl(String filePath) {
-        if (filePath == null || filePath.trim().isEmpty()) {
+        if (!StringUtils.hasText(filePath)) {
             return "";
         }
         return "/api/files/preview/" + filePath;
     }
 
-    public MediaType getMediaType(String fileName) {
-        String extension = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
-        switch (extension) {
-            case ".jpg":
-            case ".jpeg":
-                return MediaType.IMAGE_JPEG;
-            case ".png":
-                return MediaType.IMAGE_PNG;
-            case ".gif":
-                return MediaType.IMAGE_GIF;
-            case ".pdf":
-                return MediaType.APPLICATION_PDF;
-            default:
-                return MediaType.APPLICATION_OCTET_STREAM;
+    public void cleanupTempFiles() {
+        try {
+            Path tempDir = Paths.get(uploadPath, "temp");
+            if (Files.exists(tempDir)) {
+                Files.walk(tempDir)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(path -> {
+                            try {
+                                Files.delete(path);
+                            } catch (IOException e) {
+                                log.error("删除临时文件失败: {}", e.getMessage());
+                            }
+                        });
+            }
+        } catch (IOException e) {
+            log.error("清理临时文件失败: {}", e.getMessage());
         }
     }
 }
