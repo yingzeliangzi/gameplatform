@@ -53,7 +53,7 @@ public class AuthController {
 
     @Operation(summary = "发送验证码", description = "发送邮箱验证码")
     @PostMapping("/verification-code")
-    public Result<Void> sendVerificationCode(
+    public Result<String> sendVerificationCode(
             @Parameter(description = "邮箱地址", required = true)
             @RequestParam @Email(message = "邮箱格式不正确") String email) {
         userService.sendVerificationCode(email);
@@ -66,12 +66,12 @@ public class AuthController {
             @Parameter(description = "邮箱地址", required = true)
             @RequestParam @Email(message = "邮箱格式不正确") String email) {
         userService.resetPassword(email);
-        return Result.success("新密码已发送到您的邮箱");
+        return Result.success();
     }
 
     @Operation(summary = "用户登出", description = "退出登录")
     @PostMapping("/logout")
-    public Result<Void> logout() {
+    public Result<String> logout() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null) {
             userService.logout(auth.getName());

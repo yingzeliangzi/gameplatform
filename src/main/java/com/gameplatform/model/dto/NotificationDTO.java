@@ -1,9 +1,9 @@
 package com.gameplatform.model.dto;
+
 import com.gameplatform.model.entity.Notification;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-
 
 /**
  * @author SakurazawaRyoko
@@ -19,24 +19,22 @@ public class NotificationDTO {
     private Notification.NotificationType type;
     private String targetType;
     private Long targetId;
-    private boolean isRead;
+    private boolean read;
     private LocalDateTime createdAt;
     private LocalDateTime readAt;
 
     // 根据通知类型返回目标链接
     public String getTargetUrl() {
-        if (targetId == null) return null;
-
-        switch (targetType) {
-            case "GAME":
-                return "/games/" + targetId;
-            case "EVENT":
-                return "/events/" + targetId;
-            case "POST":
-                return "/community/posts/" + targetId;
-            default:
-                return null;
+        if (this.targetId == null) {
+            return null;
         }
+
+        return switch (this.targetType) {
+            case "GAME" -> "/games/" + this.targetId;
+            case "EVENT" -> "/events/" + this.targetId;
+            case "POST" -> "/posts/" + this.targetId;
+            default -> null;
+        };
     }
 }
 

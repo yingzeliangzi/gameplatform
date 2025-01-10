@@ -3,6 +3,7 @@ package com.gameplatform.controller;
 import com.gameplatform.annotation.RequirePermission;
 import com.gameplatform.common.Result;
 import com.gameplatform.model.dto.NotificationDTO;
+import com.gameplatform.model.dto.NotificationSettingsDTO;
 import com.gameplatform.model.dto.UnreadCountDTO;
 import com.gameplatform.model.entity.Notification;
 import com.gameplatform.service.NotificationService;

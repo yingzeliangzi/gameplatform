@@ -19,6 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author SakurazawaRyoko
@@ -55,6 +59,130 @@ public class UserServiceImpl implements UserService {
     private static final long VERIFICATION_CODE_EXPIRE = 15; // 15分钟
     private static final int MAX_LOGIN_ATTEMPTS = 5;
     private static final long LOGIN_ATTEMPT_EXPIRE = 30; // 30分钟
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserDTO> getUserFollowers(Long userId, Pageable pageable) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 处理分页
+        List<User> followers = new ArrayList<>(user.getFollowers());
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), followers.size());
+        List<User> pageContent = followers.subList(start, end);
+
+        // 转换为DTO并返回分页结果
+        List<UserDTO> dtoList = pageContent.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(dtoList, pageable, followers.size());
+    }
+
+    // 修复缓存相关的方法，使用正确的类型
+    private void setCacheWithExpiration(String key, String value, long timeout, TimeUnit unit) {
+        try {
+            cacheService.setCache(key, value, timeout, unit);
+        } catch (Exception e) {
+            log.error("缓存设置失败: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public LoginResponseDTO login(String username, String password) {
+        String loginAttemptKey = "loginAttempt:" + username;
+
+        // 检查登录尝试次数
+        Integer attempts = (Integer) cacheService.get(loginAttemptKey)
+                .orElse(0);
+
+        if (attempts >= MAX_LOGIN_ATTEMPTS) {
+            throw new BusinessException("账号已被锁定，请" + LOGIN_ATTEMPT_EXPIRE + "分钟后重试");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> {
+                    incrementLoginAttempts(loginAttemptKey, attempts);
+                    return new BusinessException("用户名或密码错误");
+                });
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            incrementLoginAttempts(loginAttemptKey, attempts);
+            throw new BusinessException("用户名或密码错误");
+        }
+
+        // 清除登录尝试记录
+        cacheService.delete(loginAttemptKey);
+
+        // 更新最后登录时间
+        user.setLastLoginTime(LocalDateTime.now());
+        userRepository.save(user);
+
+        // 生成token
+        String token = jwtUtil.generateToken(username);
+        // 存储token
+        setCacheWithExpiration("userToken:" + username, token, 24, TimeUnit.HOURS);
+
+        // 构建响应
+        LoginResponseDTO response = new LoginResponseDTO();
+        response.setToken(token);
+        response.setUser(convertToDTO(user));
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserDTO> getUserFollowing(Long userId, Pageable pageable) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 创建一个新的 ArrayList 来存储关注的用户
+        List<User> following = new ArrayList<>(user.getFollowing());
+
+        // 手动实现分页
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), following.size());
+        List<User> pageContent = following.subList(start, end);
+
+        // 转换为 DTO
+        List<UserDTO> dtoList = pageContent.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(dtoList, pageable, following.size());
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 清除用户相关数据
+        user.setStatus(User.UserStatus.DELETED);
+        userRepository.save(user);
+
+        // 清除用户缓存
+        cacheService.invalidateUser(userId);
+    }
+
+    @Override
+    public String refreshToken(String token) {
+        if (!jwtUtil.validateToken(token)) {
+            throw new BusinessException("无效的token");
+        }
+
+        String username = jwtUtil.getUsernameFromToken(token);
+        UserDTO user = loadUserByUsername(username);
+
+        if (user != null) {
+            return jwtUtil.generateToken(username);
+        }
+
+        throw new BusinessException("刷新token失败");
+    }
 
     @Override
     @Transactional
@@ -85,48 +213,6 @@ public class UserServiceImpl implements UserService {
         emailService.sendVerificationEmail(user.getEmail(), verificationCode);
 
         return convertToDTO(savedUser);
-    }
-
-    @Override
-    @Transactional
-    public LoginResponseDTO login(String username, String password) {
-        String loginAttemptKey = "loginAttempt:" + username;
-
-        // 检查登录尝试次数
-        Integer attempts = (Integer) cacheService.get(loginAttemptKey).orElse(0);
-        if (attempts >= MAX_LOGIN_ATTEMPTS) {
-            throw new BusinessException("账号已被锁定，请" + LOGIN_ATTEMPT_EXPIRE + "分钟后重试");
-        }
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> {
-                    incrementLoginAttempts(loginAttemptKey, attempts);
-                    return new BusinessException("用户名或密码错误");
-                });
-
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            incrementLoginAttempts(loginAttemptKey, attempts);
-            throw new BusinessException("用户名或密码错误");
-        }
-
-        if (user.getStatus() != User.UserStatus.ACTIVE) {
-            throw new BusinessException("账号状态异常，请联系管理员");
-        }
-
-        // 清除登录尝试记录
-        cacheService.delete(loginAttemptKey);
-
-        user.setLastLoginTime(LocalDateTime.now());
-        userRepository.save(user);
-
-        UserDTO userDTO = convertToDTO(user);
-        String token = jwtUtil.generateToken(username);
-        cacheService.setCache("userToken:" + username, token, 24, TimeUnit.HOURS);
-
-        LoginResponseDTO response = new LoginResponseDTO();
-        response.setToken(token);
-        response.setUser(userDTO);
-        return response;
     }
 
     private void incrementLoginAttempts(String key, Integer attempts) {

@@ -71,7 +71,7 @@ public class EventController {
 
     @Operation(summary = "获取活动列表", description = "分页获取活动列表，支持关键字和类型筛选")
     @GetMapping
-    public Result<Page<EventListItemDTO>> getEvents(
+    public Result<Page<EventDTO>> getEvents(
             @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
             @Parameter(description = "活动类型") @RequestParam(required = false) Event.EventType type,
             @AuthenticationPrincipal UserDetails userDetails,
@@ -80,18 +80,20 @@ public class EventController {
         return Result.success(eventService.searchEvents(keyword, type, userId, pageable));
     }
 
+
     @Operation(summary = "获取即将开始的活动", description = "分页获取即将开始的活动列表")
     @GetMapping("/upcoming")
-    public Result<Page<EventListItemDTO>> getUpcomingEvents(
+    public Result<Page<EventDTO>> getUpcomingEvents(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 10) Pageable pageable) {
         Long userId = userDetails != null ? Long.parseLong(userDetails.getUsername()) : null;
-        return Result.success(eventService.getUpcomingEvents(userId, pageable));
+        Page<EventDTO> events = eventService.getUpcomingEvents(userId, pageable);
+        return Result.success(events);
     }
 
     @Operation(summary = "获取进行中的活动", description = "分页获取正在进行的活动列表")
     @GetMapping("/ongoing")
-    public Result<Page<EventListItemDTO>> getOngoingEvents(
+    public Result<Page<EventDTO>> getOngoingEvents(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 10) Pageable pageable) {
         Long userId = userDetails != null ? Long.parseLong(userDetails.getUsername()) : null;
@@ -112,8 +114,7 @@ public class EventController {
     @RequirePermission("event:register")
     public Result<EventRegistrationDTO> registerForEvent(
             @Parameter(description = "活动ID", required = true) @PathVariable Long id,
-            @Parameter(description = "报名信息", required = true)
-            @Valid @RequestBody EventRegistrationDTO registrationDTO,
+            @Parameter(description = "报名信息", required = true) @Valid @RequestBody EventRegistrationDTO registrationDTO,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return Result.success(eventService.registerForEvent(id, userId, registrationDTO));

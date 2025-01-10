@@ -19,6 +19,7 @@ import java.util.Set;
  */
 public interface UserService {
     UserDTO register(RegisterRequestDTO registerRequest);
+    LoginResponseDTO login(String username, String password);
     void logout(String token);
     UserDTO updateUser(Long userId, UserDTO userDTO);
     void updatePassword(Long userId, String oldPassword, String newPassword);
@@ -29,6 +30,7 @@ public interface UserService {
     Page<UserDTO> searchUsers(String keyword, Pageable pageable);
     void disableUser(Long userId);
     void enableUser(Long userId);
+    void deleteUser(Long userId);
     UserDTO getUserProfile(Long userId);
     UserDTO loadUserByUsername(String username);
     List<User> getActiveUsers();
@@ -38,8 +40,6 @@ public interface UserService {
     boolean validateToken(String token);
     void blockUser(Long userId, Long targetUserId);
     void unblockUser(Long userId, Long targetUserId);
-    LoginResponseDTO login(String username, String password);
-    void deleteUser(Long userId);
     UserDTO getCurrentUser(String token);
     void sendVerificationCode(String email);
     void resetPassword(String email);

@@ -70,4 +70,6 @@ public interface EventService {
     void batchUpdateEventStatus(List<Long> eventIds, Event.EventStatus status);
     void batchDeleteEvents(List<Long> eventIds);
     void batchCancelRegistrations(Long eventId, List<Long> userIds);
+
+    EventRegistrationDTO registerForEvent(Long eventId, Long userId, EventRegistrationDTO registrationDTO);
 }

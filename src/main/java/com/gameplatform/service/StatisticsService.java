@@ -17,4 +17,5 @@ public interface StatisticsService {
     Map<String, Object> getUserStatistics(Long userId);
     Map<String, Object> getGameStatistics(Long gameId);
     Map<String, List<Number>> getTrendStatistics();
+    void generateDailyStatistics();
 }

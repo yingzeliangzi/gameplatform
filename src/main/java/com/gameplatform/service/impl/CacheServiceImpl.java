@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +27,16 @@ public class CacheServiceImpl implements CacheService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+
+    @Override
+    public Set<String> getKeysByPattern(String pattern) {
+        try {
+            return redisTemplate.keys(pattern);
+        } catch (Exception e) {
+            log.error("获取键值模式失败: {}", e.getMessage());
+            return new HashSet<>();
+        }
+    }
 
     @Override
     public void cacheUser(UserDTO userDTO) {

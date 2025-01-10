@@ -23,7 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author SakurazawaRyoko
@@ -40,6 +41,71 @@ public class GameServiceImpl implements GameService {
     private final UserGameRepository userGameRepository;
     private final CacheService cacheService;
     private final PostRepository postRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> generateUserGamingReport(Long userId) {
+        Map<String, Object> report = new HashMap<>();
+
+        List<UserGame> userGames = userGameRepository.findByUserId(userId);
+
+        report.put("totalGames", userGames.size());
+        report.put("totalPlayTime", userGames.stream()
+                .mapToInt(UserGame::getPlayTime)
+                .sum());
+        report.put("averageRating", userGames.stream()
+                .filter(ug -> ug.getUserRating() != null)
+                .mapToDouble(UserGame::getUserRating)
+                .average()
+                .orElse(0.0));
+
+        // 添加最近游戏记录
+        report.put("recentGames", userGames.stream()
+                .sorted(Comparator.comparing(UserGame::getLastPlayedAt).reversed())
+                .limit(5)
+                .map(ug -> convertToDTO(ug.getGame()))
+                .collect(Collectors.toList()));
+
+        return report;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getGameTrends(Long gameId, String timeRange) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start;
+
+        // 根据时间范围确定起始时间
+        switch (timeRange.toLowerCase()) {
+            case "week":
+                start = now.minusWeeks(1);
+                break;
+            case "month":
+                start = now.minusMonths(1);
+                break;
+            case "year":
+                start = now.minusYears(1);
+                break;
+            default:
+                throw new BusinessException("不支持的时间范围");
+        }
+
+        List<Map<String, Object>> trends = new ArrayList<>();
+        List<UserGame> userGames = userGameRepository.findByGameId(gameId);
+
+        // 处理统计数据
+        userGames.stream()
+                .filter(ug -> ug.getLastPlayedAt().isAfter(start))
+                .forEach(ug -> {
+                    Map<String, Object> trend = new HashMap<>();
+                    trend.put("date", ug.getLastPlayedAt());
+                    trend.put("playTime", ug.getPlayTime());
+                    trend.put("userCount", 1);
+                    trends.add(trend);
+                });
+
+        return trends;
+    }
 
     @Override
     @Transactional(readOnly = true)

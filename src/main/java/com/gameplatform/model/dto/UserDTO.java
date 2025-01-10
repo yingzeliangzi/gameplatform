@@ -1,10 +1,14 @@
 package com.gameplatform.model.dto;
 import lombok.Data;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 
 
@@ -59,4 +63,17 @@ public class UserDTO {
     private boolean isFollowing;
     private boolean isBlocked;
     private Set<String> permissions;
+
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        Set<GrantedAuthority> authorities = new HashSet<>();
+        if (roles != null) {
+            roles.forEach(role ->
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+        }
+        if (permissions != null) {
+            permissions.forEach(permission ->
+                    authorities.add(new SimpleGrantedAuthority(permission)));
+        }
+        return authorities;
+    }
 }

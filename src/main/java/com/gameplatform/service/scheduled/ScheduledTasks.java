@@ -34,16 +34,39 @@ public class ScheduledTasks {
     private final StatisticsService statisticsService;
     private final NotificationService notificationService;
     private final CacheService cacheService;
+    private final EventService eventService;
 
     // 每天凌晨2点执行统计任务
     @Scheduled(cron = "0 0 2 * * ?")
-    public void generateDailyStatistics() {
+    public void dailyStatistics() {
         try {
             log.info("开始生成每日统计数据");
             statisticsService.generateDailyStatistics();
             log.info("每日统计数据生成完成");
         } catch (Exception e) {
             log.error("生成每日统计数据失败", e);
+        }
+    }
+
+    // 每5分钟检查一次事件提醒
+    @Scheduled(fixedRate = 300000)
+    public void checkEventReminders() {
+        try {
+            log.info("开始检查事件提醒");
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime oneHourLater = now.plusHours(1);
+
+            // 获取即将开始的事件
+            List<Event> upcomingEvents = eventService.getEventsStartingBetween(now, oneHourLater);
+
+            // 发送提醒
+            for (Event event : upcomingEvents) {
+                notificationService.sendEventNotification(event);
+            }
+
+            log.info("事件提醒检查完成");
+        } catch (Exception e) {
+            log.error("检查事件提醒失败", e);
         }
     }
 
@@ -92,28 +115,6 @@ public class ScheduledTasks {
             log.info("系统通知发送完成");
         } catch (Exception e) {
             log.error("发送系统通知失败", e);
-        }
-    }
-
-    // 每5分钟检查一次事件提醒
-    @Scheduled(fixedRate = 300000)
-    public void checkEventReminders() {
-        try {
-            log.info("开始检查事件提醒");
-            LocalDateTime now = LocalDateTime.now();
-            LocalDateTime oneHourLater = now.plusHours(1);
-
-            // 获取即将开始的事件
-            List<Event> upcomingEvents = eventService.getEventsStartingBetween(now, oneHourLater);
-
-            // 发送提醒
-            for (Event event : upcomingEvents) {
-                notificationService.sendEventReminders(event);
-            }
-
-            log.info("事件提醒检查完成");
-        } catch (Exception e) {
-            log.error("检查事件提醒失败", e);
         }
     }
 

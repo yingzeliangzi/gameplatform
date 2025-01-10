@@ -3,6 +3,7 @@ package com.gameplatform.service;
 import com.gameplatform.model.dto.UserDTO;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -24,4 +25,5 @@ public interface CacheService {
     void evictCacheByPattern(String pattern);
     <T> Optional<T> getCache(String key, Class<T> type);
     void setCache(String key, Object value, long timeout, TimeUnit unit);
+    Set<String> getKeysByPattern(String pattern);
 }

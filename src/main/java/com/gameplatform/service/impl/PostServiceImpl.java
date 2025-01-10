@@ -14,16 +14,12 @@ import com.gameplatform.service.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +40,123 @@ public class PostServiceImpl implements PostService {
     private final PostLikeRepository postLikeRepository;
     private final NotificationService notificationService;
     private final CacheService cacheService;
+
+    @Override
+    @Transactional
+    public void deletePost(Long postId, Long userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException("帖子不存在"));
+
+        if (!post.getAuthor().getId().equals(userId) &&
+                !userRepository.findById(userId).get().isAdmin()) {
+            throw new BusinessException("无权删除此帖子");
+        }
+
+        postRepository.delete(post);
+    }
+
+    @Override
+    @Transactional
+    public PostDTO getPostById(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException("帖子不存在"));
+
+        // 增加浏览量
+        postRepository.incrementViewCount(postId);
+
+        return convertToDTO(post);
+    }
+
+    @Override
+    @Transactional
+    public CommentDTO replyToComment(Long commentId, CommentDTO replyDTO, Long userId) {
+        Comment parentComment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException("评论不存在"));
+
+        User author = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        Comment reply = new Comment();
+        reply.setContent(replyDTO.getContent());
+        reply.setAuthor(author);
+        reply.setPost(parentComment.getPost());
+        reply.setParentComment(parentComment);
+
+        Comment savedReply = commentRepository.save(reply);
+
+        // 如果回复的不是自己的评论，则发送通知
+        if (!parentComment.getAuthor().getId().equals(userId)) {
+            notificationService.sendReplyNotification(
+                    parentComment.getAuthor(),
+                    parentComment,
+                    author
+            );
+        }
+
+        return convertToCommentDTO(savedReply);
+    }
+
+    private CommentDTO convertToCommentDTO(Comment comment) {
+        CommentDTO dto = new CommentDTO();
+        BeanUtils.copyProperties(comment, dto);
+        dto.setAuthorId(comment.getAuthor().getId());
+        dto.setAuthorName(comment.getAuthor().getNickname());
+        dto.setAuthorAvatar(comment.getAuthor().getAvatar());
+        dto.setPostId(comment.getPost().getId());
+
+        if (comment.getParentComment() != null) {
+            dto.setParentId(comment.getParentComment().getId());
+        }
+
+        // 添加回复列表
+        if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+            dto.setReplies(comment.getReplies().stream()
+                    .map(this::convertToCommentDTO)
+                    .collect(Collectors.toList()));
+        }
+
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public void deleteComment(Long commentId, Long userId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException("评论不存在"));
+
+        if (!comment.getAuthor().getId().equals(userId) &&
+                !userRepository.findById(userId).get().isAdmin()) {
+            throw new BusinessException("无权删除此评论");
+        }
+
+        commentRepository.delete(comment);
+    }
+
+    @Override
+    @Transactional
+    public void collectPost(Long postId, Long userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException("帖子不存在"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 检查是否已收藏
+        if (postLikeRepository.existsByPostIdAndUserId(postId, userId)) {
+            throw new BusinessException("已经收藏过此帖子");
+        }
+
+        PostLike postLike = new PostLike();
+        postLike.setPost(post);
+        postLike.setUser(user);
+        postLikeRepository.save(postLike);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PostDTO> getHotPosts(Pageable pageable) {
+        return postRepository.findHotPosts(pageable)
+                .map(this::convertToDTO);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -242,15 +355,6 @@ public class PostServiceImpl implements PostService {
     private UserDTO convertToUserDTO(User user) {
         UserDTO dto = new UserDTO();
         BeanUtils.copyProperties(user, dto, "password");
-        return dto;
-    }
-
-    private CommentDTO convertToCommentDTO(Comment comment) {
-        CommentDTO dto = new CommentDTO();
-        BeanUtils.copyProperties(comment, dto);
-        dto.setAuthorId(comment.getAuthor().getId());
-        dto.setAuthorName(comment.getAuthor().getNickname());
-        dto.setAuthorAvatar(comment.getAuthor().getAvatar());
         return dto;
     }
 }

@@ -1,10 +1,13 @@
 package com.gameplatform.service;
 
 import com.gameplatform.model.dto.NotificationDTO;
+import com.gameplatform.model.dto.NotificationSettingsDTO;
 import com.gameplatform.model.dto.UnreadCountDTO;
 import com.gameplatform.model.entity.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+
+import java.util.List;
 
 /**
  * @author SakurazawaRyoko
@@ -27,4 +30,9 @@ public interface NotificationService {
     void sendNewPostNotification(User follower, Post post);
     void sendEventReminder(EventRegistration registration);
     void sendRegistrationConfirmation(EventRegistration registration);
+    void sendEventNotification(Event event);  // 发送事件通知
+    void sendSystemNotification(String title, String content, List<Long> userIds);  // 发送系统通知
+    void sendGameNotification(String title, String content, Long gameId, List<Long> userIds);  // 发送游戏相关通知
+    void updateNotificationSettings(Long userId, NotificationSettingsDTO settings);
+    NotificationSettingsDTO getNotificationSettings(Long userId);
 }

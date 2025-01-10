@@ -3,6 +3,7 @@ package com.gameplatform.service.impl;
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.dto.EventDTO;
 import com.gameplatform.model.dto.EventListItemDTO;
+import com.gameplatform.model.dto.EventRegistrationDTO;
 import com.gameplatform.model.dto.NotificationDTO;
 import com.gameplatform.model.entity.*;
 import com.gameplatform.repository.EventRepository;
@@ -34,11 +35,71 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
     private final EventRepository eventRepository;
+    private final EventRegistrationRepository eventRegistrationRepository;
     private final EventRegistrationRepository registrationRepository;
     private final UserRepository userRepository;
     private final GameRepository gameRepository;
     private final NotificationService notificationService;
     private final FileUtil fileUtil;
+
+    @Override
+    @Transactional
+    public EventRegistrationDTO registerForEvent(Long eventId, Long userId, EventRegistrationDTO registrationDTO) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        if (eventRegistrationRepository.existsByEventIdAndUserIdAndStatus(
+                eventId, userId, EventRegistration.RegistrationStatus.REGISTERED)) {
+            throw new BusinessException("已经报名过该活动");
+        }
+
+        EventRegistration registration = new EventRegistration();
+        registration.setEvent(event);
+        registration.setUser(user);
+        registration.setContactInfo(registrationDTO.getContactInfo());
+        registration.setRemark(registrationDTO.getRemark());
+        registration.setStatus(EventRegistration.RegistrationStatus.REGISTERED);
+        registration.setRegisteredAt(LocalDateTime.now());
+
+        EventRegistration savedRegistration = eventRegistrationRepository.save(registration);
+
+        // 更新活动参与人数
+        event.setCurrentParticipants(event.getCurrentParticipants() + 1);
+        eventRepository.save(event);
+
+        return convertToDTO(savedRegistration);
+    }
+
+    private EventRegistrationDTO convertToDTO(EventRegistration registration) {
+        EventRegistrationDTO dto = new EventRegistrationDTO();
+        BeanUtils.copyProperties(registration, dto);
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public void batchCancelRegistrations(Long eventId, List<Long> userIds) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+
+        for (Long userId : userIds) {
+            EventRegistration registration = eventRegistrationRepository
+                    .findByEventIdAndUserId(eventId, userId)
+                    .orElseThrow(() -> new BusinessException("未找到报名记录"));
+
+            registration.setStatus(EventRegistration.RegistrationStatus.CANCELLED);
+            registration.setCancelledAt(LocalDateTime.now());
+            eventRegistrationRepository.save(registration);
+        }
+
+        // 更新活动参与人数
+        event.setCurrentParticipants(Math.max(0,
+                event.getCurrentParticipants() - userIds.size()));
+        eventRepository.save(event);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -311,7 +372,6 @@ public class EventServiceImpl implements EventService {
         return dto;
     }
 
-    // 以下是接口方法的实现
     @Override
     public List<Event> getEventsStartingBetween(LocalDateTime start, LocalDateTime end) {
         return eventRepository.findByStartTimeBetween(start, end);
@@ -361,5 +421,12 @@ public class EventServiceImpl implements EventService {
     public List<EventRegistration> getEventParticipants(Long eventId) {
         return registrationRepository.findByEventIdAndStatus(
                 eventId, EventRegistration.RegistrationStatus.REGISTERED);
+    }
+
+    @Override
+    @Transactional
+    public void batchDeleteEvents(List<Long> eventIds) {
+        List<Event> events = eventRepository.findAllById(eventIds);
+        eventRepository.deleteAll(events);
     }
 }

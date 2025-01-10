@@ -3,17 +3,19 @@ package com.gameplatform.service.impl;
 import com.gameplatform.config.properties.NotificationProperties;
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.dto.NotificationDTO;
+import com.gameplatform.model.dto.NotificationSettingsDTO;
 import com.gameplatform.model.dto.UnreadCountDTO;
 import com.gameplatform.model.entity.*;
 import com.gameplatform.model.message.NotificationMessage;
+import com.gameplatform.repository.EventRegistrationRepository;
 import com.gameplatform.repository.NotificationRepository;
 import com.gameplatform.repository.UserRepository;
+import com.gameplatform.repository.UserSettingRepository;
 import com.gameplatform.service.EventService;
 import com.gameplatform.service.NotificationService;
 import com.gameplatform.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 
 /**
@@ -33,8 +34,6 @@ import java.util.stream.Collectors;
  * @date 2024/12/28 19:43
  * @description TODO
  */
-// 路径：F:\yingzeliangzi\Desktop\gameplatform\src\main\java\com\gameplatform\service\impl\NotificationServiceImpl.java
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -46,6 +45,141 @@ public class NotificationServiceImpl implements NotificationService {
     private final JmsTemplate jmsTemplate;
     private final EventService eventService;
     private final NotificationProperties notificationProperties;
+    private final EventRegistrationRepository eventRegistrationRepository;
+    private final UserSettingRepository userSettingRepository;
+
+    @Override
+    @Transactional
+    public void updateNotificationSettings(Long userId, NotificationSettingsDTO settings) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 保存到用户设置表
+        saveUserSetting(userId, "system_notification", settings.getSystemNotification().toString());
+        saveUserSetting(userId, "game_notification", settings.getGameNotification().toString());
+        saveUserSetting(userId, "event_notification", settings.getEventNotification().toString());
+        saveUserSetting(userId, "email_notification", settings.getEmailNotification().toString());
+        if (settings.getPushTimeStart() != null) {
+            saveUserSetting(userId, "push_time_start", settings.getPushTimeStart());
+        }
+        if (settings.getPushTimeEnd() != null) {
+            saveUserSetting(userId, "push_time_end", settings.getPushTimeEnd());
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public NotificationSettingsDTO getNotificationSettings(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        NotificationSettingsDTO settings = new NotificationSettingsDTO();
+
+        // 从用户设置表获取配置
+        settings.setSystemNotification(getBooleanSetting(userId, "system_notification", true));
+        settings.setGameNotification(getBooleanSetting(userId, "game_notification", true));
+        settings.setEventNotification(getBooleanSetting(userId, "event_notification", true));
+        settings.setEmailNotification(getBooleanSetting(userId, "email_notification", true));
+        settings.setPushTimeStart(getStringSetting(userId, "push_time_start", "08:00"));
+        settings.setPushTimeEnd(getStringSetting(userId, "push_time_end", "22:00"));
+
+        return settings;
+    }
+
+    // 辅助方法
+    private void saveUserSetting(Long userId, String key, String value) {
+        UserSetting setting = userSettingRepository.findByUserIdAndKey(userId, key)
+                .orElse(new UserSetting());
+        setting.setUserId(userId);
+        setting.setKey(key);
+        setting.setValue(value);
+        userSettingRepository.save(setting);
+    }
+
+    private Boolean getBooleanSetting(Long userId, String key, Boolean defaultValue) {
+        return userSettingRepository.findByUserIdAndKey(userId, key)
+                .map(setting -> Boolean.parseBoolean(setting.getValue()))
+                .orElse(defaultValue);
+    }
+
+    private String getStringSetting(Long userId, String key, String defaultValue) {
+        return userSettingRepository.findByUserIdAndKey(userId, key)
+                .map(UserSetting::getValue)
+                .orElse(defaultValue);
+    }
+
+    @Override
+    public void sendSystemNotification(String title, String content, List<Long> userIds) {
+        NotificationDTO notification = new NotificationDTO();
+        notification.setTitle(title);
+        notification.setContent(content);
+        notification.setType(Notification.NotificationType.SYSTEM);
+        notification.setTargetType("SYSTEM");
+
+        for (Long userId : userIds) {
+            try {
+                sendNotification(userId, notification);
+            } catch (Exception e) {
+                log.error("Failed to send system notification to user {}: {}", userId, e.getMessage());
+            }
+        }
+    }
+
+    @Override
+    public void sendGameNotification(String title, String content, Long gameId, List<Long> userIds) {
+        NotificationDTO notification = new NotificationDTO();
+        notification.setTitle(title);
+        notification.setContent(content);
+        notification.setType(Notification.NotificationType.GAME_DISCOUNT);
+        notification.setTargetType("GAME");
+        notification.setTargetId(gameId);
+
+        for (Long userId : userIds) {
+            try {
+                sendNotification(userId, notification);
+            } catch (Exception e) {
+                log.error("Failed to send game notification to user {}: {}", userId, e.getMessage());
+            }
+        }
+    }
+
+    @Override
+    public void sendEventNotification(Event event) {
+        NotificationDTO notification = new NotificationDTO();
+        notification.setTitle("活动提醒");
+        notification.setContent("活动「" + event.getTitle() + "」即将开始");
+        notification.setType(Notification.NotificationType.EVENT_REMINDER);
+        notification.setTargetType("EVENT");
+        notification.setTargetId(event.getId());
+
+        // 获取所有报名用户
+        List<EventRegistration> registrations = eventRegistrationRepository.findByEventIdAndStatus(
+                event.getId(), EventRegistration.RegistrationStatus.REGISTERED);
+
+        for (EventRegistration registration : registrations) {
+            try {
+                sendNotification(registration.getUser().getId(), notification);
+            } catch (Exception e) {
+                log.error("Failed to send event notification to user {}: {}",
+                        registration.getUser().getId(), e.getMessage());
+            }
+        }
+    }
+
+    // 修改DTO转换方法
+    private NotificationDTO convertToDTO(Notification notification) {
+        NotificationDTO dto = new NotificationDTO();
+        dto.setId(notification.getId());
+        dto.setTitle(notification.getTitle());
+        dto.setContent(notification.getContent());
+        dto.setType(notification.getType());
+        dto.setTargetType(notification.getTargetType());
+        dto.setTargetId(notification.getTargetId());
+        dto.setRead(notification.isRead());
+        dto.setCreatedAt(notification.getCreatedAt());
+        dto.setReadAt(notification.getReadAt());
+        return dto;
+    }
 
     @Value("${notification.queue}")
     private String notificationQueue;
@@ -257,24 +391,6 @@ public class NotificationServiceImpl implements NotificationService {
         if (!userRepository.existsById(userId)) {
             throw new BusinessException("用户不存在");
         }
-    }
-
-    private NotificationDTO convertToDTO(Notification notification) {
-        NotificationDTO dto = new NotificationDTO();
-        BeanUtils.copyProperties(notification, dto);
-        dto.setType(notification.getType());
-
-        // 根据不同类型设置额外信息
-        switch (notification.getType()) {
-            case EVENT_REMINDER -> {
-                Event event = eventService.getEventById(notification.getTargetId(), null);
-                dto.setTargetUrl("/events/" + event.getId());
-            }
-            case POST_REPLY -> dto.setTargetUrl("/posts/" + notification.getTargetId());
-            case GAME_DISCOUNT -> dto.setTargetUrl("/games/" + notification.getTargetId());
-        }
-
-        return dto;
     }
 
     // 定时任务：清理过期通知

@@ -1,8 +1,10 @@
 package com.gameplatform.service.message;
 
+import com.gameplatform.config.properties.NotificationProperties;
 import com.gameplatform.exception.BusinessException;
 import com.gameplatform.model.entity.User;
 import com.gameplatform.model.entity.UserSetting;
+import com.gameplatform.model.message.NotificationMessage;
 import com.gameplatform.repository.UserRepository;
 import com.gameplatform.service.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +18,6 @@ import org.springframework.stereotype.Component;
  * @date 2025/01/05 13:37
  * @description TODO
  */
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -32,9 +33,6 @@ public class NotificationListener {
             if (shouldSendEmail(message)) {
                 sendEmailNotification(message);
             }
-
-            // 处理其他异步任务...
-
         } catch (Exception e) {
             log.error("处理通知消息失败", e);
         }
@@ -44,13 +42,11 @@ public class NotificationListener {
         User user = userRepository.findById(message.getUserId())
                 .orElseThrow(() -> new BusinessException("用户不存在"));
 
-        // 检查用户的邮件通知设置
         UserSetting emailSetting = user.getSetting("email_notification");
         if (emailSetting == null || !Boolean.parseBoolean(emailSetting.getValue())) {
             return false;
         }
 
-        // 检查通知类型是否需要发送邮件
         return notificationProperties.getEmailTypes().contains(message.getType());
     }
 

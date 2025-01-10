@@ -10,6 +10,6 @@ public class FileOperationException extends BusinessException {
     }
 
     public FileOperationException(String message, Throwable cause) {
-        super(message, cause);
+        super("FILE_OPERATION_ERROR", message + ": " + cause.getMessage());
     }
 }
