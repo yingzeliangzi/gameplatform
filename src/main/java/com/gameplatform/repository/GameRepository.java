@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -41,4 +42,23 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     @Query("SELECT COUNT(g) FROM Game g WHERE g.rating >= :rating")
     long countByRatingGreaterThanEqual(@Param("rating") Double rating);
+
+    Page<Game> findByCreatedAtAfterOrderByCreatedAtDesc(LocalDateTime date, Pageable pageable);
+
+    @Query("SELECT DISTINCT g FROM Game g " +
+            "WHERE g.id NOT IN :excludeIds " +
+            "AND EXISTS (SELECT 1 FROM g.categories c WHERE c IN :categories) " +
+            "ORDER BY g.rating DESC, g.popularity DESC")
+    List<Game> findRecommendedGames(
+            @Param("excludeIds") Set<Long> excludeIds,
+            @Param("categories") Set<String> categories,
+            Pageable pageable
+    );
+
+    @Query("SELECT g FROM Game g " +
+            "ORDER BY g.popularity DESC, g.rating DESC, g.ratingCount DESC")
+    List<Game> findHotGames(Pageable pageable);
+
+    @Query("SELECT DISTINCT g FROM Game g JOIN g.categories c WHERE c = :category")
+    Page<Game> findByCategory(@Param("category") String category, Pageable pageable);
 }

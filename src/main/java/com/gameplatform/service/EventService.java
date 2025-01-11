@@ -26,8 +26,6 @@ public interface EventService {
 
     // 查询和搜索
     Page<EventDTO> searchEvents(String keyword, Event.EventType type, Long userId, Pageable pageable);
-    Page<EventDTO> getOngoingEvents(Long userId, Pageable pageable);
-    Page<EventDTO> getUpcomingEvents(Long userId, Pageable pageable);
     List<Event> getEventsStartingBetween(LocalDateTime start, LocalDateTime end);
     List<Event> findByEndTimeBetween(LocalDateTime start, LocalDateTime end);
     List<Event> findByStatus(Event.EventStatus status);
@@ -39,8 +37,6 @@ public interface EventService {
     void cancelEvent(Long eventId);
     boolean checkEventCapacity(Long eventId);
     List<EventRegistration> getEventParticipants(Long eventId);
-    Page<EventRegistrationDTO> getEventRegistrations(Long eventId, Pageable pageable);
-    Page<EventRegistrationDTO> getUserRegistrations(Long userId, Pageable pageable);
 
     // 事件状态管理
     void updateEventStatus(Long eventId, Event.EventStatus status);
@@ -72,5 +68,10 @@ public interface EventService {
     void batchCancelRegistrations(Long eventId, List<Long> userIds);
 
     EventRegistrationDTO registerForEvent(Long eventId, Long userId, EventRegistrationDTO registrationDTO);
+
+    Page<EventDTO> getOngoingEvents(Long userId, Pageable pageable);
+    Page<EventDTO> getUpcomingEvents(Long userId, Pageable pageable);
+    Page<EventRegistrationDTO> getEventRegistrations(Long eventId, Pageable pageable);
+    Page<EventRegistrationDTO> getUserRegistrations(Long userId, Pageable pageable);
 
 }

@@ -61,4 +61,25 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.user.id = :userId")
     long countByUserId(@Param("userId") Long userId);
+
+    long countByStatusAndStartTimeAfter(Event.EventStatus status, LocalDateTime date);
+
+    long countByStatusAndStartTimeBeforeAndEndTimeAfter(
+            Event.EventStatus status,
+            LocalDateTime currentTime,
+            LocalDateTime currentTime2
+    );
+
+    Page<Event> findByStartTimeBeforeAndEndTimeAfterAndStatus(
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Event.EventStatus status,
+            Pageable pageable
+    );
+
+    Page<Event> findByStartTimeAfterAndStatus(
+            LocalDateTime startTime,
+            Event.EventStatus status,
+            Pageable pageable
+    );
 }

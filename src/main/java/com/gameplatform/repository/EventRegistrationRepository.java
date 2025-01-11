@@ -28,9 +28,8 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
 
     Optional<EventRegistration> findByEventIdAndUserId(Long eventId, Long userId);
 
-    Page<EventRegistration> findByUserId(Long userId, Pageable pageable);
-
     Page<EventRegistration> findByEventId(Long eventId, Pageable pageable);
+    Page<EventRegistration> findByUserId(Long userId, Pageable pageable);
 
     List<EventRegistration> findByEventIdAndStatus(
             Long eventId,
@@ -45,4 +44,8 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
 
     @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.user.id = :userId")
     long countByUserId(@Param("userId") Long userId);
+
+    List<EventRegistration> findByUserIdOrderByRegisteredAtDesc(Long userId, Pageable pageable);
+
+    Page<EventRegistration> findByEventIdOrderByRegisteredAtDesc(Long eventId, Pageable pageable);
 }

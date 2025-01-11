@@ -56,4 +56,5 @@ public interface UserGameRepository extends JpaRepository<UserGame, Long> {
     Long sumPlayTimeInTimeRange(LocalDateTime start, LocalDateTime end);
     Map<String, Long> getPlayTimeDistribution(Long gameId);
     Map<Integer, Long> getRatingDistribution(Long gameId);
+    void deleteByGameId(Long gameId);
 }

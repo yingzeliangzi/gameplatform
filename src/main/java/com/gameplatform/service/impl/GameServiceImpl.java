@@ -15,7 +15,9 @@ import com.gameplatform.service.CacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,150 @@ public class GameServiceImpl implements GameService {
     private final UserGameRepository userGameRepository;
     private final CacheService cacheService;
     private final PostRepository postRepository;
+
+    @Override
+    @Transactional
+    public GameDTO createGame(GameDTO gameDTO) {
+        // 检查重复
+        if (gameRepository.existsByTitle(gameDTO.getTitle())) {
+            throw new BusinessException("游戏名称已存在");
+        }
+
+        Game game = new Game();
+        game.setTitle(gameDTO.getTitle());
+        game.setDescription(gameDTO.getDescription());
+        game.setPrice(gameDTO.getPrice());
+        game.setCoverImage(gameDTO.getCoverImage());
+        game.setCategories(gameDTO.getCategories());
+        game.setScreenshots(gameDTO.getScreenshots());
+        game.setRating(0.0);
+        game.setRatingCount(0);
+        game.setPopularity(0);
+        game.setCreatedAt(LocalDateTime.now());
+
+        Game savedGame = gameRepository.save(game);
+        return convertToDTO(savedGame);
+    }
+
+    @Override
+    @Transactional
+    public GameDTO updateGame(Long gameId, GameDTO gameDTO) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
+        // 更新基本信息
+        if (gameDTO.getTitle() != null) {
+            game.setTitle(gameDTO.getTitle());
+        }
+        if (gameDTO.getDescription() != null) {
+            game.setDescription(gameDTO.getDescription());
+        }
+        if (gameDTO.getPrice() != null) {
+            game.setPrice(gameDTO.getPrice());
+        }
+        if (gameDTO.getCoverImage() != null) {
+            game.setCoverImage(gameDTO.getCoverImage());
+        }
+        if (gameDTO.getCategories() != null) {
+            game.setCategories(gameDTO.getCategories());
+        }
+        if (gameDTO.getScreenshots() != null) {
+            game.setScreenshots(gameDTO.getScreenshots());
+        }
+
+        Game updatedGame = gameRepository.save(game);
+
+        // 清除缓存
+        cacheService.evictCache("game:" + gameId);
+
+        return convertToDTO(updatedGame);
+    }
+
+    @Override
+    @Transactional
+    public void deleteGame(Long gameId) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
+        // 检查是否有关联数据
+        if (!userGameRepository.findByGameId(gameId).isEmpty()) {
+            throw new BusinessException("该游戏已有用户购买，无法删除");
+        }
+
+        // 删除相关的评论和评分
+        userGameRepository.deleteByGameId(gameId);
+
+        // 删除游戏
+        gameRepository.delete(game);
+
+        // 清除缓存
+        cacheService.evictCache("game:" + gameId);
+        cacheService.evictCache("game:list");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<GameDTO> getGamesByCategory(String category, Pageable pageable) {
+        // 获取指定分类的游戏列表
+        Page<Game> games = gameRepository.findByCategory(category, pageable);
+
+        return games.map(this::convertToDTO);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GameDTO> getHotGames() {
+        // 获取热门游戏，基于评分、玩家数量和最近活跃度
+        List<Game> hotGames = gameRepository.findHotGames(PageRequest.of(0, 10));
+
+        return hotGames.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GameDTO> getRecommendedGames(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        // 获取用户已有的游戏
+        Set<Long> userGameIds = user.getGames().stream()
+                .map(ug -> ug.getGame().getId())
+                .collect(Collectors.toSet());
+
+        // 获取用户游戏的类别
+        Set<String> userCategories = user.getGames().stream()
+                .flatMap(ug -> ug.getGame().getCategories().stream())
+                .collect(Collectors.toSet());
+
+        // 根据用户喜好获取推荐游戏
+        List<Game> recommendedGames = gameRepository.findRecommendedGames(
+                userGameIds,
+                userCategories,
+                PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "rating"))
+        );
+
+        return recommendedGames.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GameDTO> getNewReleases(int limit) {
+        LocalDateTime oneMonthAgo = LocalDateTime.now().minusMonths(1);
+
+        // 获取最近添加的游戏
+        List<Game> newGames = gameRepository.findByCreatedAtAfterOrderByCreatedAtDesc(
+                oneMonthAgo,
+                PageRequest.of(0, limit)
+        ).getContent();
+
+        return newGames.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
 
     @Override
     @Transactional

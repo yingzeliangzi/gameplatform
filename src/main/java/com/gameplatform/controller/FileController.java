@@ -2,6 +2,7 @@ package com.gameplatform.controller;
 
 import com.gameplatform.annotation.RequirePermission;
 import com.gameplatform.common.Result;
+import com.gameplatform.exception.BusinessException;
 import com.gameplatform.exception.FileOperationException;
 import com.gameplatform.util.FileUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,6 +23,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.NotNull;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +46,9 @@ import java.util.Map;
 public class FileController {
 
     private final FileUtil fileUtil;
+
+    @Value("${upload.path}")
+    private String uploadPath;
 
     @Operation(summary = "上传文件", description = "上传单个文件")
     @PostMapping("/upload")
@@ -102,31 +110,24 @@ public class FileController {
 
     @Operation(summary = "预览文件", description = "预览指定文件")
     @GetMapping("/preview/{fileName}")
-    public ResponseEntity<Resource> previewFile(
-            @Parameter(description = "文件名", required = true)
-            @PathVariable String fileName) {
-        try {
-            Resource resource = fileUtil.loadFileAsResource(fileName);
-            MediaType mediaType = fileUtil.getMediaType(fileName);
-            return ResponseEntity.ok()
-                    .contentType(mediaType)
-                    .body(resource);
-        } catch (IOException e) {
-            throw new FileOperationException("文件预览失败: " + e.getMessage());
-        }
+    public ResponseEntity<Resource> previewFile(@PathVariable String fileName) {
+        Resource resource = fileUtil.loadFileAsResource(fileName);
+        MediaType mediaType = fileUtil.getMediaType(fileName);
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .body(resource);
     }
 
     @Operation(summary = "删除文件", description = "删除指定文件")
     @DeleteMapping("/{fileName}")
-    @RequirePermission("file:delete")
-    public Result<Void> deleteFile(
-            @Parameter(description = "文件名", required = true)
-            @PathVariable String fileName) {
+    public Result<Void> deleteFile(@PathVariable String fileName) {
+        Path path = Paths.get(uploadPath, fileName);
         try {
-            fileUtil.deleteFile(fileName);
+            Files.delete(path);
             return Result.success();
         } catch (IOException e) {
-            throw new FileOperationException("文件删除失败: " + e.getMessage());
+            throw new BusinessException("文件删除失败: " + e.getMessage());
         }
     }
 }

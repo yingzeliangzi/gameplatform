@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -41,6 +42,127 @@ public class EventServiceImpl implements EventService {
     private final GameRepository gameRepository;
     private final NotificationService notificationService;
     private final FileUtil fileUtil;
+
+    private EventRegistrationDTO convertToEventRegistrationDTO(EventRegistration registration) {
+        EventRegistrationDTO dto = new EventRegistrationDTO();
+        dto.setId(registration.getId());
+        dto.setEventId(registration.getEvent().getId());
+        dto.setUserId(registration.getUser().getId());
+        dto.setUsername(registration.getUser().getUsername());
+        dto.setContactInfo(registration.getContactInfo());
+        dto.setRemark(registration.getRemark());
+        dto.setStatus(registration.getStatus());
+        dto.setRegisteredAt(registration.getRegisteredAt());
+        dto.setCancelledAt(registration.getCancelledAt());
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> getUserEvents(Long userId, Pageable pageable) {
+        // 使用Page查询然后转换为List
+        Page<EventRegistration> registrations = eventRegistrationRepository
+                .findByUserIdOrderByRegisteredAtDesc(userId, pageable);
+
+        return registrations.getContent().stream()
+                .map(EventRegistration::getEvent)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventRegistrationDTO> getEventRegistrations(Long eventId, Pageable pageable) {
+        return eventRegistrationRepository.findByEventId(eventId, pageable)
+                .map(this::convertToEventRegistrationDTO);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventRegistrationDTO> getUserRegistrations(Long userId, Pageable pageable) {
+        return eventRegistrationRepository.findByUserId(userId, pageable)
+                .map(this::convertToEventRegistrationDTO);
+    }
+
+    @Override
+    @Transactional
+    public void sendRegistrationConfirmation(EventRegistration registration) {
+        Event event = registration.getEvent();
+        User user = registration.getUser();
+
+        // 创建通知
+        NotificationDTO notification = new NotificationDTO();
+        notification.setTitle("报名确认通知");
+        notification.setContent(String.format("您已成功报名活动「%s」，活动时间：%s",
+                event.getTitle(),
+                formatEventTime(event.getStartTime(), event.getEndTime())));
+        notification.setType(Notification.NotificationType.EVENT_REMINDER);
+        notification.setTargetType("EVENT");
+        notification.setTargetId(event.getId());
+
+        // 发送通知
+        notificationService.sendNotification(user.getId(), notification);
+    }
+
+    private String formatEventTime(LocalDateTime startTime, LocalDateTime endTime) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        return String.format("%s 至 %s",
+                startTime.format(formatter),
+                endTime.format(formatter));
+    }
+
+    @Override
+    @Transactional
+    public void sendEventCancellationNotice(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+
+        // 获取所有已报名的用户
+        List<EventRegistration> registrations = eventRegistrationRepository
+                .findByEventIdAndStatus(eventId, EventRegistration.RegistrationStatus.REGISTERED);
+
+        // 发送取消通知给所有报名用户
+        for (EventRegistration registration : registrations) {
+            NotificationDTO notification = new NotificationDTO();
+            notification.setTitle("活动取消通知");
+            notification.setContent("您报名的活动「" + event.getTitle() + "」已被取消");
+            notification.setType(Notification.NotificationType.EVENT_REMINDER);
+            notification.setTargetType("EVENT");
+            notification.setTargetId(event.getId());
+
+            notificationService.sendNotification(registration.getUser().getId(), notification);
+        }
+
+        // 更新活动状态
+        event.setStatus(Event.EventStatus.CANCELLED);
+        eventRepository.save(event);
+
+        // 更新所有报名状态
+        registrations.forEach(registration -> {
+            registration.setStatus(EventRegistration.RegistrationStatus.CANCELLED);
+            registration.setCancelledAt(LocalDateTime.now());
+        });
+        eventRegistrationRepository.saveAll(registrations);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countOngoingEvents() {
+        LocalDateTime now = LocalDateTime.now();
+        return eventRepository.countByStatusAndStartTimeBeforeAndEndTimeAfter(
+                Event.EventStatus.ONGOING,
+                now,
+                now
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countUpcomingEvents() {
+        return eventRepository.countByStatusAndStartTimeAfter(
+                Event.EventStatus.UPCOMING,
+                LocalDateTime.now()
+        );
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -177,6 +299,30 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    public void deleteEvent(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+
+        // 检查活动状态
+        if (event.getStatus() == Event.EventStatus.ONGOING) {
+            throw new BusinessException("无法删除正在进行的活动");
+        }
+
+        // 取消相关的报名
+        List<EventRegistration> registrations = registrationRepository
+                .findByEventIdAndStatus(eventId, EventRegistration.RegistrationStatus.REGISTERED);
+
+        registrations.forEach(registration -> {
+            registration.setStatus(EventRegistration.RegistrationStatus.CANCELLED);
+            registration.setCancelledAt(LocalDateTime.now());
+            notificationService.sendEventReminder(registration);
+        });
+
+        eventRepository.delete(event);
+    }
+
+    @Override
+    @Transactional
     public void batchDeleteEvents(List<Long> eventIds) {
         List<Event> events = eventRepository.findAllById(eventIds);
 
@@ -247,28 +393,33 @@ public class EventServiceImpl implements EventService {
         return dto;
     }
 
+    private EventListItemDTO convertToEventListItemDTO(Event event) {
+        EventListItemDTO dto = new EventListItemDTO();
+        BeanUtils.copyProperties(event, dto);
+
+        if (event.getGame() != null) {
+            dto.setGame(event.getGame());
+        }
+
+        return dto;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public Page<EventDTO> getOngoingEvents(Long userId, Pageable pageable) {
         LocalDateTime now = LocalDateTime.now();
-        Page<Event> events = eventRepository.findOngoingEvents(
-                now,
-                Event.EventStatus.ONGOING,
-                pageable
-        );
-        return convertToEventDTOPage(events, userId, pageable);
+        Page<Event> events = eventRepository.findByStartTimeBeforeAndEndTimeAfterAndStatus(
+                now, now, Event.EventStatus.ONGOING, pageable);
+        return events.map(this::convertToDTO);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<EventDTO> getUpcomingEvents(Long userId, Pageable pageable) {
         LocalDateTime now = LocalDateTime.now();
-        Page<Event> events = eventRepository.findUpcomingEvents(
-                now,
-                Event.EventStatus.UPCOMING,
-                pageable
-        );
-        return convertToEventDTOPage(events, userId, pageable);
+        Page<Event> events = eventRepository.findByStartTimeAfterAndStatus(
+                now, Event.EventStatus.UPCOMING, pageable);
+        return events.map(this::convertToDTO);
     }
 
     private Page<EventDTO> convertToEventDTOPage(Page<Event> events, Long userId, Pageable pageable) {
