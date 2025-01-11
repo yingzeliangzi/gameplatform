@@ -87,8 +87,7 @@ public class EventController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 10) Pageable pageable) {
         Long userId = userDetails != null ? Long.parseLong(userDetails.getUsername()) : null;
-        Page<EventDTO> events = eventService.getUpcomingEvents(userId, pageable);
-        return Result.success(events);
+        return Result.success(eventService.getUpcomingEvents(userId, pageable));
     }
 
     @Operation(summary = "获取进行中的活动", description = "分页获取正在进行的活动列表")

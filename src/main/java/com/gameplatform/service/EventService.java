@@ -72,4 +72,5 @@ public interface EventService {
     void batchCancelRegistrations(Long eventId, List<Long> userIds);
 
     EventRegistrationDTO registerForEvent(Long eventId, Long userId, EventRegistrationDTO registrationDTO);
+
 }

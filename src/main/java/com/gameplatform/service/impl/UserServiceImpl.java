@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
-
     private final UserRepository userRepository;
     private final UserGameRepository userGameRepository;
     private final UserSettingRepository userSettingRepository;
@@ -59,6 +58,86 @@ public class UserServiceImpl implements UserService {
     private static final long VERIFICATION_CODE_EXPIRE = 15; // 15分钟
     private static final int MAX_LOGIN_ATTEMPTS = 5;
     private static final long LOGIN_ATTEMPT_EXPIRE = 30; // 30分钟
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserDTO> searchUsers(String keyword, Pageable pageable) {
+        // 使用repository的查询方法
+        Page<User> users;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            users = userRepository.searchUsers(keyword.trim(), pageable);
+        } else {
+            users = userRepository.findAll(pageable);
+        }
+
+        // 转换为DTO并返回
+        return users.map(this::convertToDTO);
+    }
+
+    @Override
+    @Transactional
+    public void disableUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        if (user.isAdmin()) {
+            throw new BusinessException("不能禁用管理员账户");
+        }
+
+        user.setStatus(User.UserStatus.DISABLED);
+        userRepository.save(user);
+
+        // 清除用户缓存和相关会话
+        cacheService.invalidateUser(userId);
+    }
+
+    @Override
+    @Transactional
+    public void enableUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+        user.setStatus(User.UserStatus.ACTIVE);
+        userRepository.save(user);
+        cacheService.invalidateUser(userId);
+    }
+
+    // 修复Long类型的拆箱问题
+    public UserDTO getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        UserDTO userDTO = convertToDTO(user);
+        Long gameCount = userGameRepository.countByUserId(userId);
+        userDTO.setGameCount(gameCount != null ? gameCount.intValue() : 0);
+
+        return userDTO;
+    }
+
+    // 修复缓存相关的方法
+    private void setCacheData(String key, Object value, long timeout, TimeUnit unit) {
+        Map<String, Object> cacheData = new HashMap<>();
+        cacheData.put("value", value);
+        cacheData.put("timestamp", System.currentTimeMillis());
+        cacheService.setCache(key, cacheData, timeout, unit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<User> getActiveUsers() {
+        return userRepository.findByStatus(User.UserStatus.ACTIVE);
+    }
+
+    @Override
+    @Transactional
+    public void updateUserRoles(Long userId, Set<String> roles) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+        user.setRoles(roles);
+        userRepository.save(user);
+
+        // 清除用户缓存
+        cacheService.invalidateUser(userId);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -78,15 +157,6 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
 
         return new PageImpl<>(dtoList, pageable, followers.size());
-    }
-
-    // 修复缓存相关的方法，使用正确的类型
-    private void setCacheWithExpiration(String key, String value, long timeout, TimeUnit unit) {
-        try {
-            cacheService.setCache(key, value, timeout, unit);
-        } catch (Exception e) {
-            log.error("缓存设置失败: {}", e.getMessage());
-        }
     }
 
     @Override
@@ -123,7 +193,7 @@ public class UserServiceImpl implements UserService {
         // 生成token
         String token = jwtUtil.generateToken(username);
         // 存储token
-        setCacheWithExpiration("userToken:" + username, token, 24, TimeUnit.HOURS);
+        setCacheData("userToken:" + username, token, 24, TimeUnit.HOURS);
 
         // 构建响应
         LoginResponseDTO response = new LoginResponseDTO();

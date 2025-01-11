@@ -53,11 +53,11 @@ public class AuthController {
 
     @Operation(summary = "发送验证码", description = "发送邮箱验证码")
     @PostMapping("/verification-code")
-    public Result<String> sendVerificationCode(
+    public Result<Void> sendVerificationCode(
             @Parameter(description = "邮箱地址", required = true)
             @RequestParam @Email(message = "邮箱格式不正确") String email) {
         userService.sendVerificationCode(email);
-        return Result.success("验证码已发送");
+        return Result.success();
     }
 
     @Operation(summary = "重置密码", description = "通过邮箱重置密码")
@@ -71,12 +71,12 @@ public class AuthController {
 
     @Operation(summary = "用户登出", description = "退出登录")
     @PostMapping("/logout")
-    public Result<String> logout() {
+    public Result<Void> logout() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null) {
             userService.logout(auth.getName());
         }
-        return Result.success("登出成功");
+        return Result.success();
     }
 
     @Operation(summary = "获取当前用户信息", description = "获取登录用户的详细信息")
@@ -95,11 +95,8 @@ public class AuthController {
     public Result<String> refreshToken(
             @Parameter(description = "原token", required = true)
             @RequestParam @NotBlank(message = "token不能为空") String token) {
-        if (userService.validateToken(token)) {
-            String refreshedToken = userService.refreshToken(token);
-            return Result.success(refreshedToken);
-        }
-        return Result.error(401, "无效的token");
+        String newToken = userService.refreshToken(token);
+        return Result.success(newToken);
     }
 
     @Operation(summary = "验证Token", description = "验证token是否有效")

@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class GameServiceImpl implements GameService {
-
     private final GameRepository gameRepository;
     private final UserRepository userRepository;
     private final UserGameRepository userGameRepository;
@@ -43,28 +42,262 @@ public class GameServiceImpl implements GameService {
     private final PostRepository postRepository;
 
     @Override
+    @Transactional
+    public void addGameReview(Long gameId, Long userId, String review) {
+        UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new BusinessException("未拥有该游戏"));
+
+        // 检查是否已经有评价
+        if (userGame.getUserReview() != null) {
+            throw new BusinessException("已经评价过该游戏，请使用更新功能");
+        }
+
+        // 添加评价
+        userGame.setUserReview(review);
+
+        // 如果还没有评分，设置一个默认评分
+        if (userGame.getUserRating() == null) {
+            userGame.setUserRating(5.0); // 默认5分
+        }
+
+        userGameRepository.save(userGame);
+
+        // 更新游戏总评分
+        updateGameRating(gameId);
+
+        // 清除缓存
+        cacheService.evictCache("game:review:" + gameId + ":" + userId);
+    }
+
+    @Override
+    @Transactional
+    public void updateGameReview(Long gameId, Long userId, String review) {
+        UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new BusinessException("未找到游戏评价"));
+
+        // 更新评价内容
+        userGame.setUserReview(review);
+        userGameRepository.save(userGame);
+
+        // 清除缓存
+        cacheService.evictCache("game:review:" + gameId + ":" + userId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteGameReview(Long gameId, Long userId) {
+        UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new BusinessException("未找到游戏评价"));
+
+        // 清除评分和评价
+        userGame.setUserRating(null);
+        userGame.setUserReview(null);
+        userGameRepository.save(userGame);
+
+        // 更新游戏总评分
+        updateGameRating(gameId);
+
+        // 清除缓存
+        cacheService.evictCache("game:rating:" + gameId);
+    }
+
+    private void updateGameRating(Long gameId) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
+        // 计算新的平均评分
+        Double avgRating = getAverageRating(gameId);
+        game.setRating(avgRating);
+
+        // 更新评分数量
+        long ratingCount = userGameRepository.findByGameId(gameId).stream()
+                .filter(ug -> ug.getUserRating() != null)
+                .count();
+        game.setRatingCount((int) ratingCount);
+
+        gameRepository.save(game);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Double getAverageRating(Long gameId) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
+        List<UserGame> userGames = userGameRepository.findByGameId(gameId);
+
+        return userGames.stream()
+                .filter(ug -> ug.getUserRating() != null)
+                .mapToDouble(UserGame::getUserRating)
+                .average()
+                .orElse(0.0);
+    }
+
+    @Override
+    @Transactional
+    public void updateGameProgress(Long gameId, Long userId, Integer progress) {
+        UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new BusinessException("未拥有该游戏"));
+
+        userGame.setPlayTime(progress);
+        userGame.setLastPlayedAt(LocalDateTime.now());
+        userGameRepository.save(userGame);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getGamePlayerCount(Long gameId) {
+        return userGameRepository.countByGameId(gameId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getGameStatistics(Long gameId) {
+        Map<String, Object> statistics = new HashMap<>();
+
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
+        // 游戏基本信息
+        statistics.put("rating", game.getRating());
+        statistics.put("ratingCount", game.getRatingCount());
+
+        // 玩家统计
+        long playerCount = userGameRepository.countByGameId(gameId);
+        statistics.put("playerCount", playerCount);
+
+        // 游戏时长分布
+        statistics.put("playTimeDistribution", getPlayTimeDistribution(gameId));
+
+        // 评分分布
+        statistics.put("ratingDistribution", getRatingDistribution(gameId));
+
+        return statistics;
+    }
+
+    @Override
+    public Map<Integer, Long> getRatingDistribution(Long gameId) {
+        List<UserGame> userGames = userGameRepository.findByGameId(gameId);
+        return userGames.stream()
+                .filter(ug -> ug.getUserRating() != null)
+                .collect(Collectors.groupingBy(
+                        ug -> ug.getUserRating().intValue(),
+                        Collectors.counting()
+                ));
+    }
+
+    public Map<String, Long> getPlayTimeDistribution(Long gameId) {
+        List<UserGame> userGames = userGameRepository.findByGameId(gameId);
+        Map<String, Long> distribution = new HashMap<>();
+
+        distribution.put("0-1h", userGames.stream()
+                .filter(ug -> ug.getPlayTime() <= 60).count());
+        distribution.put("1-5h", userGames.stream()
+                .filter(ug -> ug.getPlayTime() > 60 && ug.getPlayTime() <= 300).count());
+        distribution.put("5-10h", userGames.stream()
+                .filter(ug -> ug.getPlayTime() > 300 && ug.getPlayTime() <= 600).count());
+        distribution.put(">10h", userGames.stream()
+                .filter(ug -> ug.getPlayTime() > 600).count());
+
+        return distribution;
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Map<String, Object> generateUserGamingReport(Long userId) {
         Map<String, Object> report = new HashMap<>();
-
         List<UserGame> userGames = userGameRepository.findByUserId(userId);
 
+        // 基础统计
         report.put("totalGames", userGames.size());
         report.put("totalPlayTime", userGames.stream()
                 .mapToInt(UserGame::getPlayTime)
                 .sum());
-        report.put("averageRating", userGames.stream()
+
+        // 游戏评分统计
+        DoubleSummaryStatistics ratingStats = userGames.stream()
                 .filter(ug -> ug.getUserRating() != null)
                 .mapToDouble(UserGame::getUserRating)
-                .average()
-                .orElse(0.0));
+                .summaryStatistics();
+        report.put("averageRating", ratingStats.getAverage());
+        report.put("totalRated", ratingStats.getCount());
 
-        // 添加最近游戏记录
-        report.put("recentGames", userGames.stream()
-                .sorted(Comparator.comparing(UserGame::getLastPlayedAt).reversed())
+        // 最常玩的游戏
+        List<Map<String, Object>> mostPlayed = userGames.stream()
+                .sorted(Comparator.comparing(UserGame::getPlayTime).reversed())
                 .limit(5)
-                .map(ug -> convertToDTO(ug.getGame()))
-                .collect(Collectors.toList()));
+                .map(ug -> {
+                    Map<String, Object> gameStats = new HashMap<>();
+                    gameStats.put("gameId", ug.getGame().getId());
+                    gameStats.put("title", ug.getGame().getTitle());
+                    gameStats.put("playTime", ug.getPlayTime());
+                    gameStats.put("lastPlayed", ug.getLastPlayedAt());
+                    return gameStats;
+                })
+                .collect(Collectors.toList());
+        report.put("mostPlayed", mostPlayed);
+
+        // 最近游玩记录
+        List<Map<String, Object>> recentActivity = userGames.stream()
+                .filter(ug -> ug.getLastPlayedAt() != null)
+                .sorted(Comparator.comparing(UserGame::getLastPlayedAt).reversed())
+                .limit(10)
+                .map(ug -> {
+                    Map<String, Object> activity = new HashMap<>();
+                    activity.put("gameId", ug.getGame().getId());
+                    activity.put("title", ug.getGame().getTitle());
+                    activity.put("playTime", ug.getPlayTime());
+                    activity.put("lastPlayed", ug.getLastPlayedAt());
+                    return activity;
+                })
+                .collect(Collectors.toList());
+        report.put("recentActivity", recentActivity);
+
+        // 分类统计
+        Map<String, Long> categoryStats = userGames.stream()
+                .flatMap(ug -> ug.getGame().getCategories().stream())
+                .collect(Collectors.groupingBy(
+                        category -> category,
+                        Collectors.counting()
+                ));
+        report.put("categoryDistribution", categoryStats);
+
+        return report;
+    }
+
+    @Override
+    @Transactional
+    public void updatePlayTime(Long gameId, Long userId, Integer minutes) {
+        UserGame userGame = userGameRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new BusinessException("未拥有该游戏"));
+
+        userGame.setPlayTime(userGame.getPlayTime() + minutes);
+        userGame.setLastPlayedAt(LocalDateTime.now());
+        userGameRepository.save(userGame);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> generateGameReport(Long gameId) {
+        Map<String, Object> report = new HashMap<>();
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new BusinessException("游戏不存在"));
+
+        // 基础信息
+        report.put("title", game.getTitle());
+        report.put("rating", game.getRating());
+        report.put("ratingCount", game.getRatingCount());
+        report.put("popularity", game.getPopularity());
+
+        // 玩家统计
+        long playerCount = userGameRepository.countByGameId(gameId);
+        report.put("totalPlayers", playerCount);
+
+        // 游玩时间分布
+        report.put("playTimeDistribution", getPlayTimeDistribution(gameId));
+
+        // 评分分布
+        report.put("ratingDistribution", getRatingDistribution(gameId));
 
         return report;
     }

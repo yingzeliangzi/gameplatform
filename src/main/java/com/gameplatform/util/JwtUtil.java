@@ -30,11 +30,10 @@ public class JwtUtil {
     private static final String CLAIM_KEY_CREATED = "created";
     private static final String CLAIM_KEY_USER_ID = "userId";
 
-    public String generateToken(String username, Long userId) {
+    public String generateToken(String username) {
         Map<String, Object> claims = new HashMap<>();
         claims.put(CLAIM_KEY_USERNAME, username);
         claims.put(CLAIM_KEY_CREATED, new Date());
-        claims.put(CLAIM_KEY_USER_ID, userId);
         return generateToken(claims);
     }
 
@@ -93,7 +92,7 @@ public class JwtUtil {
         }
     }
 
-    private String generateToken(Map<String, Object> claims) {
+    public String generateToken(Map<String, Object> claims) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setExpiration(generateExpirationDate())

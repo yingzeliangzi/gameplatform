@@ -1,5 +1,6 @@
 package com.gameplatform.repository;
 import com.gameplatform.model.entity.Event;
+import com.gameplatform.model.entity.Game;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -7,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 
@@ -40,4 +42,23 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("type") Event.EventType type,
             Pageable pageable
     );
+    @Query("SELECT e FROM Event e WHERE e.status = :status " +
+            "ORDER BY e.currentParticipants DESC, e.createdAt DESC")
+    Page<Event> findPopularEvents(@Param("status") Event.EventStatus status, Pageable pageable);
+
+    @Query("SELECT e FROM Event e WHERE e.status = :status AND e.game IN :games " +
+            "AND e.startTime > CURRENT_TIMESTAMP " +
+            "ORDER BY e.startTime ASC")
+    List<Event> findByStatusAndGameIn(
+            @Param("status") Event.EventStatus status,
+            @Param("games") Collection<Game> games,
+            Pageable pageable
+    );
+
+    @Query("SELECT COUNT(r) FROM EventRegistration r WHERE r.event.id = :eventId " +
+            "AND r.status = 'REGISTERED'")
+    int countRegisteredParticipants(@Param("eventId") Long eventId);
+
+    @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.user.id = :userId")
+    long countByUserId(@Param("userId") Long userId);
 }
