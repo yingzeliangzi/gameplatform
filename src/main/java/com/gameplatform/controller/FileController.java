@@ -23,6 +23,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.NotNull;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -99,11 +101,14 @@ public class FileController {
             @PathVariable String fileName) {
         try {
             Resource resource = fileUtil.loadFileAsResource(fileName);
+            String filename = URLEncoder.encode(resource.getFilename(), StandardCharsets.UTF_8.toString())
+                    .replaceAll("\\+", "%20");
+
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(resource);
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new FileOperationException("文件下载失败: " + e.getMessage());
         }
     }
@@ -111,20 +116,27 @@ public class FileController {
     @Operation(summary = "预览文件", description = "预览指定文件")
     @GetMapping("/preview/{fileName}")
     public ResponseEntity<Resource> previewFile(@PathVariable String fileName) {
-        Resource resource = fileUtil.loadFileAsResource(fileName);
-        MediaType mediaType = fileUtil.getMediaType(fileName);
+        try {
+            Resource resource = fileUtil.loadFileAsResource(fileName);
+            MediaType mediaType = fileUtil.getMediaType(fileName);
 
-        return ResponseEntity.ok()
-                .contentType(mediaType)
-                .body(resource);
+            return ResponseEntity.ok()
+                    .contentType(mediaType)
+                    .body(resource);
+        } catch (IOException e) {
+            throw new FileOperationException("文件预览失败: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new BusinessException("预览文件时发生错误: " + e.getMessage());
+        }
     }
 
     @Operation(summary = "删除文件", description = "删除指定文件")
     @DeleteMapping("/{fileName}")
     public Result<Void> deleteFile(@PathVariable String fileName) {
-        Path path = Paths.get(uploadPath, fileName);
+        String filePath = uploadPath + "/" + fileName;
         try {
-            Files.delete(path);
+            Path path = Paths.get(filePath);
+            Files.deleteIfExists(path);
             return Result.success();
         } catch (IOException e) {
             throw new BusinessException("文件删除失败: " + e.getMessage());

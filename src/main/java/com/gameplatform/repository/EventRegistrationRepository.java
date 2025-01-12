@@ -45,7 +45,8 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
     @Query("SELECT COUNT(er) FROM EventRegistration er WHERE er.user.id = :userId")
     long countByUserId(@Param("userId") Long userId);
 
-    List<EventRegistration> findByUserIdOrderByRegisteredAtDesc(Long userId, Pageable pageable);
-
     Page<EventRegistration> findByEventIdOrderByRegisteredAtDesc(Long eventId, Pageable pageable);
+
+    @Query("SELECT er FROM EventRegistration er WHERE er.user.id = :userId ORDER BY er.registeredAt DESC")
+    Page<EventRegistration> findByUserIdOrderByRegisteredAtDesc(@Param("userId") Long userId, Pageable pageable);
 }

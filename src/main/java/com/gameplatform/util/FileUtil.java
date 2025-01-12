@@ -72,18 +72,19 @@ public class FileUtil {
         }
     }
 
-    public Resource loadFileAsResource(String filePath) {
+    public Resource loadFileAsResource(String filePath) throws IOException {
         try {
             Path path = Paths.get(uploadPath).resolve(filePath).normalize();
             Resource resource = new UrlResource(path.toUri());
-            if (resource.exists()) {
+            if (resource.exists() && resource.isReadable()) {
                 return resource;
             } else {
-                throw new BusinessException(BusinessException.ErrorCode.NOT_FOUND, "文件不存在");
+                throw new IOException("文件不存在或无法读取: " + filePath);
             }
         } catch (MalformedURLException e) {
-            log.error("文件路径错误: {}", e.getMessage());
-            throw new BusinessException(BusinessException.ErrorCode.SYSTEM_ERROR, "文件路径错误");
+            throw new IOException("文件路径错误: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new IOException("无法读取文件: " + e.getMessage(), e);
         }
     }
 

@@ -9,13 +9,12 @@
 6. Permission management (for administrators only) Set user permissions, manage user roles and access control 
 7. Content management (for administrators only) Manage game information and community content (posts, comments, etc.), view and handle user reports
 
-### Requirement
+### Requirements
 1. Development language: Java;
 2. FE: Vue; 
 3. BE: SpringBoot; 
 4. Project building tool: Maven; 
-5. 
-6. Database: MySQL; 
+5. Database: MySQL; 
 
 ### Treemap
 ```
@@ -192,7 +191,6 @@ gameplatform
 │  │  │        ├─ config
 │  │  │        │  ├─ ActiveMQConfig.java
 │  │  │        │  ├─ CorsConfig.java
-│  │  │        │  ├─ JmsConfig.java
 │  │  │        │  ├─ properties
 │  │  │        │  │  └─ NotificationProperties.java
 │  │  │        │  ├─ RedisConfig.java

@@ -6,6 +6,7 @@ import org.apache.activemq.command.ActiveMQQueue;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
 import org.springframework.jms.config.JmsListenerContainerFactory;
@@ -48,7 +49,6 @@ public class ActiveMQConfig {
         factory.setPassword(password);
         factory.setTrustAllPackages(true);
 
-        // 配置重试策略
         RedeliveryPolicy redeliveryPolicy = new RedeliveryPolicy();
         redeliveryPolicy.setInitialRedeliveryDelay(1000);
         redeliveryPolicy.setBackOffMultiplier(2);
@@ -85,6 +85,7 @@ public class ActiveMQConfig {
     }
 
     @Bean
+    @Primary
     public MessageConverter jacksonJmsMessageConverter() {
         MappingJackson2MessageConverter converter = new MappingJackson2MessageConverter();
         converter.setTargetType(MessageType.TEXT);

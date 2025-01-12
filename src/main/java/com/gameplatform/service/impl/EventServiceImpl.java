@@ -59,21 +59,28 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Event> getUserEvents(Long userId, Pageable pageable) {
-        // 使用Page查询然后转换为List
+    public Page<EventDTO> getUserEvents(Long userId, Pageable pageable) {
+        // 获取分页的活动报名记录
         Page<EventRegistration> registrations = eventRegistrationRepository
                 .findByUserIdOrderByRegisteredAtDesc(userId, pageable);
 
-        return registrations.getContent().stream()
-                .map(EventRegistration::getEvent)
-                .collect(Collectors.toList());
+        // 将 Page<EventRegistration> 转换为 Page<EventDTO>
+        return registrations.map(registration -> {
+            Event event = registration.getEvent();
+            return convertToDTO(event);
+        });
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Page<EventRegistrationDTO> getEventRegistrations(Long eventId, Pageable pageable) {
-        return eventRegistrationRepository.findByEventId(eventId, pageable)
-                .map(this::convertToEventRegistrationDTO);
+    private EventDTO convertToDTO(Event event) {
+        EventDTO dto = new EventDTO();
+        BeanUtils.copyProperties(event, dto);
+
+        if (event.getGame() != null) {
+            dto.setGameId(event.getGame().getId());
+            dto.setGameName(event.getGame().getTitle());
+        }
+
+        return dto;
     }
 
     @Override
@@ -368,29 +375,6 @@ public class EventServiceImpl implements EventService {
 
         registrations.forEach(registration ->
                 notificationService.sendEventReminder(registration));
-    }
-
-    // 修正转换方法
-    private EventDTO convertToDTO(Event event) {
-        EventDTO dto = new EventDTO();
-        BeanUtils.copyProperties(event, dto);
-
-        if (event.getGame() != null) {
-            dto.setGameId(event.getGame().getId());
-            dto.setGameName(event.getGame().getTitle());
-        }
-
-        // 处理图片URL
-        if (event.getCoverImage() != null) {
-            dto.setCoverImage(fileUtil.getFileUrl(event.getCoverImage()));
-        }
-        if (event.getImages() != null) {
-            dto.setImages(event.getImages().stream()
-                    .map(fileUtil::getFileUrl)
-                    .collect(Collectors.toSet()));
-        }
-
-        return dto;
     }
 
     private EventListItemDTO convertToEventListItemDTO(Event event) {
@@ -717,8 +701,34 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<EventRegistration> getEventParticipants(Long eventId) {
-        return registrationRepository.findByEventIdAndStatus(
-                eventId, EventRegistration.RegistrationStatus.REGISTERED);
+        return eventRegistrationRepository.findByEventIdAndStatus(
+                eventId,
+                EventRegistration.RegistrationStatus.REGISTERED
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventRegistrationDTO> getEventRegistrations(Long eventId, Pageable pageable) {
+        // 使用分页查询
+        Page<EventRegistration> registrationPage = eventRegistrationRepository
+                .findByEventIdOrderByRegisteredAtDesc(eventId, pageable);
+
+        // 转换为DTO
+        return registrationPage.map(registration -> {
+            EventRegistrationDTO dto = new EventRegistrationDTO();
+            dto.setId(registration.getId());
+            dto.setEventId(registration.getEvent().getId());
+            dto.setUserId(registration.getUser().getId());
+            dto.setUsername(registration.getUser().getUsername());
+            dto.setContactInfo(registration.getContactInfo());
+            dto.setRemark(registration.getRemark());
+            dto.setStatus(registration.getStatus());
+            dto.setRegisteredAt(registration.getRegisteredAt());
+            dto.setCancelledAt(registration.getCancelledAt());
+            return dto;
+        });
     }
 }

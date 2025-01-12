@@ -43,7 +43,7 @@ public interface EventService {
     Event updateEventDetails(Long eventId, Event eventDetails);
 
     // 用户相关
-    List<Event> getUserEvents(Long userId, Pageable pageable);
+    Page<EventDTO> getUserEvents(Long userId, Pageable pageable);
 
     // 提醒相关
     void sendEventReminders(Event event);
