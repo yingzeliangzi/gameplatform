@@ -1,4 +1,23 @@
+## Design and implementation of a game service community platform based on SPRINGBOOT and VUE
 
+### Functional modules
+1. User registration and login Users register new accounts and log in to existing accounts, log in using social media accounts, and change personal information (profile editing, avatar uploading, etc.) 
+2. Game library management Synchronize the user's game library, view and search all games, filter by category, popularity, rating, etc., display the game details page (game introduction, screenshots, price, etc.), and export the user's game ownership details in the form of a CSV file 
+3. Community communication Rate games, post and reply to others' posts, and report posts 
+4. Activities and competitions Administrators publish and manage community activities and game competitions; users sign up for activities and competitions, and view activity details and schedules 
+5. Notification system Site system notifications (game discount reminders, event notifications, community notifications, etc.) 
+6. Permission management (for administrators only) Set user permissions, manage user roles and access control 
+7. Content management (for administrators only) Manage game information and community content (posts, comments, etc.), view and handle user reports
+
+### Requirement
+1. Development language: Java;
+2. FE: Vue; 
+3. BE: SpringBoot; 
+4. Project building tool: Maven; 
+5. 
+6. Database: MySQL; 
+
+### Treemap
 ```
 gameplatform
 ├─ .mvn
